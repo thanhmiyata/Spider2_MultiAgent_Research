@@ -1,15 +1,14 @@
 import os
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 from dotenv import load_dotenv
 
 load_dotenv()
 
-from config import DEFAULT_MODEL
+from config import DEFAULT_MODEL, get_llm
 
 class SingleAgent:
     def __init__(self, model_name=DEFAULT_MODEL):
-        self.llm = ChatGoogleGenerativeAI(model=model_name, temperature=0)
+        self.llm = get_llm(model_name=model_name, temperature=0)
         self.prompt = PromptTemplate(
             input_variables=["question", "schema"],
             template="""

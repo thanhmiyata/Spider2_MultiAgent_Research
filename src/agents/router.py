@@ -1,27 +1,28 @@
 import os
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 from dotenv import load_dotenv
 
 load_dotenv()
 
-from config import DEFAULT_MODEL
+from config import DEFAULT_MODEL, GEMINI_MODEL, get_llm, extract_content
 
 class RouterAgent:
-    def __init__(self, model_name=DEFAULT_MODEL):
-        self.llm = ChatGoogleGenerativeAI(model=model_name, temperature=0)
+    def __init__(self, model_name=GEMINI_MODEL):
+        self.llm = get_llm(model_name=model_name, temperature=0)
         self.prompt = PromptTemplate(
             input_variables=["query"],
             template="""
-            You are an expert SQL complexity analyzer.
-            Analyze the following natural language query and classify it into one of these categories:
-            - EASY: Simple retrieval, 1-2 tables, basic filtering.
-            - MEDIUM: Aggregations, grouping, 3-4 tables, subqueries.
-            - HARD: Complex logic, window functions, 5+ tables, nested subqueries, CTEs.
+            You are a Query Complexity Classifier.
+            Classify the following SQL query complexity as EASY, MEDIUM, or HARD.
+            
+            Definitions:
+            - EASY: Simple SELECT, WHERE, basic aggregation (COUNT, SUM), single table or simple JOIN.
+            - MEDIUM: Multiple JOINs, GROUP BY with HAVING, subqueries.
+            - HARD: Window functions (RANK, NTILE), CTEs (WITH), complex nested subqueries, set operations (UNION, INTERSECT), date manipulation, CASE WHEN.
 
             Query: {query}
 
-            Return ONLY the category name (EASY, MEDIUM, or HARD).
+            Return ONLY the complexity level (EASY, MEDIUM, or HARD).
             """
         )
         self.chain = self.prompt | self.llm
@@ -30,7 +31,11 @@ class RouterAgent:
         """Classifies the query complexity."""
         try:
             response = self.chain.invoke({"query": query})
-            return response.content.strip().upper()
+            complexity = extract_content(response).upper()
+            if complexity in ["EASY", "MEDIUM", "HARD"]:
+                return complexity
+            else:
+                return "HARD" # Default to HARD for safety
         except Exception as e:
             print(f"Error in routing: {e}")
             return "HARD" # Default to HARD for safety

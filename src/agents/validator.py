@@ -1,15 +1,14 @@
 import re
 import sqlite3
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.prompts import PromptTemplate
-from config import DEFAULT_MODEL
+from langchain_core.prompts import PromptTemplate
+from config import DEFAULT_MODEL, GEMINI_MODEL, get_llm, extract_content
 import sqlite3
 import tempfile
 import os
 
 class Validator:
-    def __init__(self, model_name=DEFAULT_MODEL):
-        self.llm = ChatGoogleGenerativeAI(model=model_name, temperature=0)
+    def __init__(self, model_name=GEMINI_MODEL):
+        self.llm = get_llm(model_name=model_name, temperature=0)
         self.prompt = PromptTemplate(
             input_variables=["question", "schema", "sql", "syntax_error"],
             template="""
@@ -17,9 +16,11 @@ class Validator:
             Review the generated SQL query for syntax errors and logical consistency.
             
             CHECKLIST:
-            1. Are all column names qualified with table aliases? (Fix "ambiguous column name" errors).
-            2. Is the syntax valid for SQLite?
-            3. Are there any misplaced keywords (e.g., ORDER BY in subqueries)?
+            1. **Ambiguity**: Are all column names qualified with table aliases? (Fix "ambiguous column name" errors).
+            2. **Syntax**: Is the syntax valid for SQLite?
+            3. **GROUP BY**: Are all non-aggregated columns in the SELECT clause present in the GROUP BY clause?
+            4. **Window Functions**: Are window functions (RANK, NTILE, etc.) used correctly?
+            5. **Logic**: Does the query answer the specific question asked?
             
             Schema:
             {schema}
@@ -32,7 +33,8 @@ class Validator:
             {syntax_error}
 
             If the SQL is correct, return "CORRECT".
-            If there are errors, return the corrected SQL query ONLY (no markdown).
+            If there are errors, return the corrected SQL query ONLY.
+            CRITICAL: Do NOT provide explanations, markdown formatting, or chat. Just the raw SQL.
             """
         )
         self.chain = self.prompt | self.llm
@@ -149,36 +151,25 @@ class Validator:
             syntax_error_message = "Syntax test passed. No obvious ambiguous columns detected."
         
         try:
-            response = self.chain.invoke({
-                "question": question,
-                "schema": schema,
-                "sql": sql,
-                "syntax_error": syntax_error_message
-            })
-            result = response.content.strip()
-            if result == "CORRECT":
-                corrected_sql = sql
-            else:
-                corrected_sql = result.replace("```sql", "").replace("```", "").strip()
+            # Prepare syntax_error for the prompt, only if there's an actual error/warning
+            error_for_prompt = ""
+            if syntax_error_message and syntax_error_message != "Syntax test passed. No obvious ambiguous columns detected.":
+                error_for_prompt = f"Syntax Error: {syntax_error_message}"
 
-            # Post-process: auto-qualify ambiguous columns if any remain
-            ambiguous_cols = self._detect_ambiguous_columns(corrected_sql, schema)
-            if ambiguous_cols:
-                # Build column-to-table map from schema (first table containing column)
-                col_table_map = {}
-                for line in schema.splitlines():
-                    if line.lower().startswith("table:"):
-                        tbl = line.split(":",1)[1].strip()
-                    elif line.lower().startswith("columns:"):
-                        cols_part = line.split(":",1)[1]
-                        cols = [c.strip().split(' ')[0] for c in cols_part.split(',')]
-                        for c in cols:
-                            col_table_map.setdefault(c, []).append(tbl)
-                for col in ambiguous_cols:
-                    if col in col_table_map and col_table_map[col]:
-                        tbl = col_table_map[col][0]
-                        corrected_sql = re.sub(rf"\\b{col}\\b", f"{tbl}.{col}", corrected_sql)
-            return corrected_sql
+            response = self.chain.invoke({
+                "question": question, 
+                "schema": schema, 
+                "sql": sql,
+                "syntax_error": error_for_prompt
+            })
+            
+            validation = extract_content(response)
+            
+            if validation == "CORRECT":
+                return sql # Return original SQL if correct
+            else:
+                # Return corrected SQL, strip markdown
+                return validation.replace("```sql", "").replace("```", "").strip()
         except Exception as e:
             print(f"Error in validation: {e}")
             return sql

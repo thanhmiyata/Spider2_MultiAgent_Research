@@ -31,6 +31,12 @@ def main():
     with open(RESULTS_FILE, 'r') as f:
         results = [json.loads(line) for line in f]
 
+    # Deduplicate results, keeping the latest one for each instance_id
+    latest_results = {}
+    for item in results:
+        latest_results[item['instance_id']] = item
+    results = list(latest_results.values())
+
     correct_count = 0
     total_count = 0
     
@@ -55,9 +61,13 @@ def main():
 
         # Locate DB
         db_folder = os.path.join(DB_DIR, db_id)
+        if not os.path.exists(db_folder):
+             # print(f"DB folder not found for {db_id}, skipping...")
+             continue
+             
         sqlite_files = [f for f in os.listdir(db_folder) if f.endswith('.sqlite')]
         if not sqlite_files:
-            print(f"DB not found for {db_id}")
+            # print(f"DB file not found in {db_folder}, skipping...")
             continue
         db_path = os.path.join(db_folder, sqlite_files[0])
 

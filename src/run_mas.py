@@ -49,83 +49,85 @@ def main():
         data = [json.loads(line) for line in f]
     
     # Filter for SQLite databases
-    sqlite_dbs = set(os.listdir(DB_DIR))
-    
-    print(f"Running Multi-Agent System ({DEFAULT_MODEL}) on SQLite subset...")
+    if not os.path.exists(DB_DIR):
+        print(f"Error: DB Directory {DB_DIR} not found.")
+        return
+
+    available_dbs = set(os.listdir(DB_DIR))
+    print(f"Available Databases: {available_dbs}")
     
     # Ensure output directory exists
     os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
 
     # Test specific instances that are known to be SQLite AND have Gold SQL
-    target_ids = ["local003", "local004", "local008", "local017", "local019"]
-    test_data = [d for d in data if d['instance_id'] in target_ids]
+    target_ids = ["local002", "local003", "local004"]
     
-    print(f"Running Multi-Agent System ({DEFAULT_MODEL}) on {len(test_data)} specific items...")
+    # Filter target_ids to only those with available DBs
+    valid_target_ids = []
+    for tid in target_ids:
+        item = next((i for i in data if i['instance_id'] == tid), None)
+        if item and item['db'] in available_dbs:
+            valid_target_ids.append(tid)
+        elif item:
+            print(f"Skipping {tid} (DB '{item['db']}' not found)")
+            
+    test_data = [d for d in data if d['instance_id'] in valid_target_ids]
+    
+    print(f"Running Multi-Agent System ({DEFAULT_MODEL}) on {len(test_data)} valid items...")
 
     for item in tqdm(test_data):
         db_id = item['db']
         instance_id = item['instance_id']
         question = item['question']
         
+        # Locate the SQLite file for this DB
+        db_folder = os.path.join(DB_DIR, db_id)
+        sqlite_files = [f for f in os.listdir(db_folder) if f.endswith('.sqlite')]
+        if not sqlite_files:
+            print(f"Warning: No .sqlite file found for {db_id}")
+            continue
+            
+        db_path = os.path.join(db_folder, sqlite_files[0])
+        schema = get_sqlite_schema(db_path)
+
         # Determine which agent to use based on query complexity
         complexity = router.route(question)
-        if complexity == "EASY":
-            # Use SingleAgent for simple queries
-            try:
-                # Locate the SQLite file for this DB
-                db_folder = os.path.join(DB_DIR, db_id)
-                sqlite_files = [f for f in os.listdir(db_folder) if f.endswith('.sqlite')]
-                if not sqlite_files:
-                    print(f"Warning: No .sqlite file found for {db_id}")
-                    generated_sql = "ERROR"
-                else:
-                    db_path = os.path.join(db_folder, sqlite_files[0])
-                    schema = get_sqlite_schema(db_path)
-                    generated_sql = single.generate(question, schema)
-            except Exception as e:
-                print(f"Error in SingleAgent for {instance_id}: {e}")
-                generated_sql = "ERROR"
-        else:
-            # Use Multi-Agent System for MEDIUM/HARD
-            # Check if DB directory exists
-            if db_id not in sqlite_dbs:
-                continue
-            
-            # Look for .sqlite file inside the directory
-            db_folder = os.path.join(DB_DIR, db_id)
-            sqlite_files = [f for f in os.listdir(db_folder) if f.endswith('.sqlite')]
-            
-            if not sqlite_files:
-                print(f"Warning: No .sqlite file found in {db_folder}")
-                continue
-            
-            db_path = os.path.join(db_folder, sqlite_files[0])
-            
-            # Get Schema
-            schema = get_sqlite_schema(db_path)
-            
-            # Run MAS
-            try:
+        
+        try:
+            if complexity == "EASY":
+                # Use SingleAgent for simple queries
+                generated_sql = single.generate(question, schema)
+            else:
+                # Use Multi-Agent System for MEDIUM/HARD
                 generated_sql = mas.run(question, schema)
-            except Exception as e:
-                print(f"Error processing {instance_id}: {e}")
-                generated_sql = "ERROR"
+                
+            print(f"[MAS] Final SQL: {generated_sql}")
+            
+            # Save result
+            result = {
+                "instance_id": instance_id,
+                "question": question,
+                "db_id": db_id,
+                "generated_sql": generated_sql
+            }
+            
+            with open(OUTPUT_FILE, 'a') as f:
+                json.dump(result, f)
+                f.write('\n')
+                
+        except Exception as e:
+            print(f"Error processing {instance_id}: {e}")
 
         time.sleep(SLEEP_TIME)
-        
-        # Save result
-        result = {
-            "instance_id": instance_id,
-            "question": question,
-            "db_id": db_id,
-            "generated_sql": generated_sql
-        }
-        
-        with open(OUTPUT_FILE, 'a') as f:
-            json.dump(result, f)
-            f.write('\n')
 
     print(f"Finished. Results saved to {OUTPUT_FILE}")
+    
+    # Run Evaluation
+    print("\n" + "="*30)
+    print("Running Automated Evaluation...")
+    print("="*30)
+    import evaluate
+    evaluate.main()
 
 if __name__ == "__main__":
     main()

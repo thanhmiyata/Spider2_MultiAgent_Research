@@ -1,11 +1,10 @@
-from langchain_google_genai import ChatGoogleGenerativeAI
-from langchain.prompts import PromptTemplate
+from langchain_core.prompts import PromptTemplate
 
-from config import DEFAULT_MODEL
+from config import DEFAULT_MODEL, GEMINI_MODEL, get_llm, extract_content
 
 class Planner:
-    def __init__(self, model_name=DEFAULT_MODEL):
-        self.llm = ChatGoogleGenerativeAI(model=model_name, temperature=0)
+    def __init__(self, model_name=GEMINI_MODEL):
+        self.llm = get_llm(model_name=model_name, temperature=0)
         self.prompt = PromptTemplate(
             input_variables=["question", "schema"],
             template="""
@@ -14,8 +13,14 @@ class Planner:
             
             IMPORTANT: 
             - Do NOT write SQL code yet. Focus on the logic.
-            - SPECIFY exact SQL functions needed (e.g., "Use NTILE(5) for quintile ranking", "Use JULIANDAY() for date difference")
+            - SPECIFY exact SQL functions needed (e.g., "Use NTILE(5) for quintile ranking", "Use JULIANDAY() for date difference", "Use STRFTIME('%Y', date_col) for year extraction").
             - Break down complex calculations into clear steps.
+            - Outline the Logical Order of Operations:
+              1. Filter (WHERE)
+              2. Join (JOIN)
+              3. Aggregate (GROUP BY)
+              4. Window Functions (OVER)
+              5. Order/Limit
             
             Schema:
             {schema}
@@ -31,7 +36,7 @@ class Planner:
         """Generates a logical plan."""
         try:
             response = self.chain.invoke({"question": question, "schema": schema})
-            return response.content.strip()
+            return extract_content(response)
         except Exception as e:
             print(f"Error in planning: {e}")
             return "Proceed directly to SQL generation."
