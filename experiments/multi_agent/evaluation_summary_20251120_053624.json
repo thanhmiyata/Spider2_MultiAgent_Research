@@ -1,0 +1,20 @@
+{
+  "total": 2,
+  "correct": 0,
+  "accuracy": 0.0,
+  "errors": {
+    "empty_sql": 0,
+    "syntax_errors": 0,
+    "execution_errors": 2
+  },
+  "by_complexity": {
+    "EASY": 0,
+    "MEDIUM": 0,
+    "HARD": 0
+  },
+  "by_agent": {
+    "single": 0,
+    "multi": 0
+  },
+  "timestamp": "20251120_053624"
+}

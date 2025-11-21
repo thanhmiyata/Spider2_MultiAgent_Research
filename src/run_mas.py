@@ -37,7 +37,7 @@ def get_sqlite_schema(db_path):
     except Exception as e:
         return f"Error reading schema: {e}"
 
-def main():
+def main(args):
     # Initialize components
     mas = MultiAgentSystem()
     router = RouterAgent()
@@ -59,19 +59,22 @@ def main():
     # Ensure output directory exists
     os.makedirs(os.path.dirname(OUTPUT_FILE), exist_ok=True)
 
-    # Test specific instances that are known to be SQLite AND have Gold SQL
-    target_ids = ["local002", "local003", "local004"]
-    
-    # Filter target_ids to only those with available DBs
-    valid_target_ids = []
-    for tid in target_ids:
-        item = next((i for i in data if i['instance_id'] == tid), None)
-        if item and item['db'] in available_dbs:
-            valid_target_ids.append(tid)
-        elif item:
-            print(f"Skipping {tid} (DB '{item['db']}' not found)")
+    # Filter data to only those with available SQLite DBs
+    test_data = []
+    for item in data:
+        if item['db'] in available_dbs:
+            test_data.append(item)
+        else:
+            # Optional: print skipped items
+            # print(f"Skipping {item['instance_id']} (DB '{item['db']}' not found)")
+            pass
             
-    test_data = [d for d in data if d['instance_id'] in valid_target_ids]
+    # Optional: Limit for testing purposes if needed, or run all
+    # test_data = test_data[:10] 
+    
+    # Optional: Limit for testing purposes
+    if args.limit > 0:
+        test_data = test_data[:args.limit]
     
     print(f"Running Multi-Agent System ({DEFAULT_MODEL}) on {len(test_data)} valid items...")
 
@@ -108,7 +111,9 @@ def main():
                 "instance_id": instance_id,
                 "question": question,
                 "db_id": db_id,
-                "generated_sql": generated_sql
+                "generated_sql": generated_sql,
+                "complexity": complexity,
+                "agent_used": "single" if complexity == "EASY" else "multi"
             }
             
             with open(OUTPUT_FILE, 'a') as f:
@@ -127,7 +132,11 @@ def main():
     print("Running Automated Evaluation...")
     print("="*30)
     import evaluate
-    evaluate.main()
+    evaluate.evaluate_results(OUTPUT_FILE)
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--limit", type=int, default=0, help="Limit number of instances to run (0 for all)")
+    args = parser.parse_args()
+    main(args)

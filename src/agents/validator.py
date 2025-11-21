@@ -128,48 +128,63 @@ class Validator:
         except Exception as e:
             return f"Syntax Error Detected: {str(e)}"
 
-    def validate(self, question: str, schema: str, sql: str) -> str:
-        """Validates and corrects SQL."""
+    def validate(self, question: str, schema: str, sql: str, max_iterations=2) -> str:
+        """Validates and corrects SQL with iterative improvement."""
         # Clean SQL first
         sql = sql.replace("```sql", "").replace("```", "").strip()
         
-        # Test syntax
-        syntax_error_message = self._test_syntax(sql)
+        current_sql = sql
         
-        # Detect ambiguous columns even if syntax passes, as it's a logical/best practice issue
-        ambiguous_cols = self._detect_ambiguous_columns(sql, schema)
-        
-        if ambiguous_cols:
-            # If ambiguous columns are found, add this to the error message for the LLM
-            if syntax_error_message:
-                syntax_error_message += f"\nPotential Ambiguous Columns Detected: {', '.join(ambiguous_cols)}. Please qualify them with table aliases."
-            else:
-                syntax_error_message = f"Potential Ambiguous Columns Detected: {', '.join(ambiguous_cols)}. Please qualify them with table aliases."
+        for iteration in range(max_iterations):
+            # Test syntax
+            syntax_error_message = self._test_syntax(current_sql)
+            
+            # Detect ambiguous columns even if syntax passes
+            ambiguous_cols = self._detect_ambiguous_columns(current_sql, schema)
+            
+            if ambiguous_cols:
+                if syntax_error_message:
+                    syntax_error_message += f"\nPotential Ambiguous Columns Detected: {', '.join(ambiguous_cols)}. Please qualify them with table aliases."
+                else:
+                    syntax_error_message = f"Potential Ambiguous Columns Detected: {', '.join(ambiguous_cols)}. Please qualify them with table aliases."
 
-        if not syntax_error_message:
-            # If no syntax errors and no ambiguous columns detected by our simple check
-            syntax_error_message = "Syntax test passed. No obvious ambiguous columns detected."
-        
-        try:
-            # Prepare syntax_error for the prompt, only if there's an actual error/warning
+            # If no errors found, return the SQL
+            if not syntax_error_message and not ambiguous_cols:
+                return current_sql
+            
+            # Prepare error message for LLM
             error_for_prompt = ""
             if syntax_error_message and syntax_error_message != "Syntax test passed. No obvious ambiguous columns detected.":
-                error_for_prompt = f"Syntax Error: {syntax_error_message}"
-
-            response = self.chain.invoke({
-                "question": question, 
-                "schema": schema, 
-                "sql": sql,
-                "syntax_error": error_for_prompt
-            })
+                error_for_prompt = f"Errors Detected: {syntax_error_message}"
             
-            validation = extract_content(response)
-            
-            if validation == "CORRECT":
-                return sql # Return original SQL if correct
-            else:
-                # Return corrected SQL, strip markdown
-                return validation.replace("```sql", "").replace("```", "").strip()
-        except Exception as e:
-            print(f"Error in validation: {e}")
-            return sql
+            try:
+                response = self.chain.invoke({
+                    "question": question, 
+                    "schema": schema, 
+                    "sql": current_sql,
+                    "syntax_error": error_for_prompt
+                })
+                
+                validation = extract_content(response)
+                
+                if validation.upper() == "CORRECT":
+                    return current_sql
+                else:
+                    # Clean the corrected SQL
+                    corrected = validation.replace("```sql", "").replace("```", "").strip()
+                    # Extract SQL if wrapped in text
+                    sql_match = re.search(r'(SELECT|WITH|INSERT|UPDATE|DELETE)', corrected, re.IGNORECASE)
+                    if sql_match:
+                        corrected = corrected[sql_match.start():]
+                    
+                    # If correction is same as original, break to avoid loop
+                    if corrected.strip() == current_sql.strip():
+                        return current_sql
+                    
+                    current_sql = corrected.strip()
+                    
+            except Exception as e:
+                print(f"Error in validation iteration {iteration + 1}: {e}")
+                return current_sql
+        
+        return current_sql

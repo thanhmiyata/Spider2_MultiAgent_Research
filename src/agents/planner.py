@@ -1,42 +1,91 @@
+import time
 from langchain_core.prompts import PromptTemplate
 
 from config import DEFAULT_MODEL, GEMINI_MODEL, get_llm, extract_content
 
 class Planner:
-    def __init__(self, model_name=GEMINI_MODEL):
+    def __init__(self, model_name=GEMINI_MODEL, max_retries=3):
         self.llm = get_llm(model_name=model_name, temperature=0)
+        self.max_retries = max_retries
         self.prompt = PromptTemplate(
             input_variables=["question", "schema"],
             template="""
-            You are a Senior Data Analyst.
-            Plan the logical steps to answer the following question using the provided schema.
+            You are a Senior Data Analyst specializing in SQL query planning.
+            Create a detailed logical execution plan to answer the following question using the provided schema.
             
-            IMPORTANT: 
-            - Do NOT write SQL code yet. Focus on the logic.
-            - SPECIFY exact SQL functions needed (e.g., "Use NTILE(5) for quintile ranking", "Use JULIANDAY() for date difference", "Use STRFTIME('%Y', date_col) for year extraction").
-            - Break down complex calculations into clear steps.
-            - Outline the Logical Order of Operations:
-              1. Filter (WHERE)
-              2. Join (JOIN)
-              3. Aggregate (GROUP BY)
-              4. Window Functions (OVER)
-              5. Order/Limit
+            CRITICAL INSTRUCTIONS:
+            - Do NOT write SQL code. Focus ONLY on the logical steps and strategy.
+            - Be SPECIFIC about SQL functions and techniques to use.
+            - Break down complex operations into clear, sequential steps.
+            
+            Planning Structure:
+            
+            1. **Data Filtering** (WHERE clause):
+               - What conditions need to be applied?
+               - What date ranges, value thresholds, or categorical filters?
+            
+            2. **Table Joins** (FROM/JOIN clauses):
+               - Which tables need to be joined?
+               - What are the join keys?
+               - Join type (INNER, LEFT, etc.)?
+            
+            3. **Grouping & Aggregation** (GROUP BY):
+               - What grouping columns?
+               - What aggregate functions? (COUNT, SUM, AVG, MIN, MAX, etc.)
+               - Any HAVING conditions?
+            
+            4. **Window Functions** (if needed):
+               - RANK(), DENSE_RANK(), ROW_NUMBER() for ranking
+               - NTILE(n) for percentile/quantile calculations
+               - LAG()/LEAD() for time-series comparisons
+               - PARTITION BY and ORDER BY for window frames
+            
+            5. **CTEs** (Common Table Expressions):
+               - Should complex logic be broken into CTEs?
+               - What intermediate results are needed?
+            
+            6. **Final Operations**:
+               - ORDER BY for sorting
+               - LIMIT for top-N results
+               - DISTINCT for uniqueness
+            
+            SPECIFIC SQL Functions to Mention:
+            - Date functions: STRFTIME('%Y-%m-%d', col), JULIANDAY(col), DATE(col)
+            - String functions: SUBSTR(), LENGTH(), UPPER(), LOWER()
+            - Math functions: ROUND(), ABS(), CAST()
+            - Conditional: CASE WHEN ... THEN ... ELSE ... END
             
             Schema:
             {schema}
 
             Question: {question}
 
-            Provide a detailed step-by-step plan with specific SQL functions mentioned.
+            Provide a clear, numbered step-by-step execution plan. Be specific about functions and techniques.
             """
         )
         self.chain = self.prompt | self.llm
 
     def plan(self, question: str, schema: str) -> str:
-        """Generates a logical plan."""
-        try:
-            response = self.chain.invoke({"question": question, "schema": schema})
-            return extract_content(response)
-        except Exception as e:
-            print(f"Error in planning: {e}")
-            return "Proceed directly to SQL generation."
+        """Generates a logical plan with retry logic."""
+        for attempt in range(self.max_retries):
+            try:
+                response = self.chain.invoke({"question": question, "schema": schema})
+                plan = extract_content(response)
+                
+                # Basic validation
+                if len(plan.strip()) < 20:
+                    if attempt < self.max_retries - 1:
+                        time.sleep(1)
+                        continue
+                    return "Proceed directly to SQL generation."
+                
+                return plan
+                
+            except Exception as e:
+                print(f"Error in planning (attempt {attempt + 1}/{self.max_retries}): {e}")
+                if attempt < self.max_retries - 1:
+                    time.sleep(2 ** attempt)
+                else:
+                    return "Proceed directly to SQL generation."
+        
+        return "Proceed directly to SQL generation."

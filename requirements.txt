@@ -8,3 +8,4 @@ scikit-learn
 pytest
 python-dotenv
 duckdb
+langchain-anthropic

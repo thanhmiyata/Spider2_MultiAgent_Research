@@ -98,6 +98,10 @@ Cấu trúc đề xuất theo chuẩn IMRAD (Introduction, Methods, Results, And
 
 ### **Giai đoạn 1: Chuẩn bị & Baseline (Tuần 1)**
 - [ ] Tải và setup Spider 2.0 dataset (lưu ý: cần xử lý docker/environment của nó).
+- [ ] **Pre-Benchmark Verification**:
+    - Chọn 1 DB có > 50 câu hỏi (để đảm bảo đủ mẫu).
+    - Random 5 câu hỏi từ DB này.
+    - Chạy thử nghiệm pipeline để verify data integrity và tránh lỗi "no such table".
 - [ ] Chạy baseline Single Agent với Gemini Flash.
 - [ ] Xây dựng evaluation script chuẩn cho Spider 2.0.
 

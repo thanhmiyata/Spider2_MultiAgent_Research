@@ -51,13 +51,30 @@ Spider2_MultiAgent_Research/
 ├── data/                   # Chứa dataset Spider 2.0 Lite (JSONL, SQLite DBs)
 ├── src/                    # Source code chính
 │   ├── agents/             # Code cho từng Agent (Router, Linker, Generator...)
-│   ├── utils/              # Các hàm tiện ích (DB connection, Evaluation...)
-│   └── main.py             # Entry point của hệ thống
+│   │   ├── router.py       # Router Agent với improved prompts
+│   │   ├── schema_linker.py # Schema Linker với retry logic
+│   │   ├── planner.py      # Planner với detailed planning
+│   │   ├── generator.py    # Generator với strict SQL rules
+│   │   ├── validator.py    # Validator với iterative correction
+│   │   ├── single_agent.py # Single Agent baseline
+│   │   └── multi_agent_flow.py # Multi-Agent orchestrator
+│   ├── utils/              # Các hàm tiện ích
+│   │   ├── evaluation.py   # Evaluation utilities
+│   │   └── logging.py      # Metrics tracking
+│   ├── main.py             # Entry point cho baseline
+│   ├── benchmark.py        # Full benchmark script (NEW)
+│   ├── evaluate.py         # Enhanced evaluation script
+│   ├── compare_results.py  # Comparison tool (NEW)
+│   └── run_full_pipeline.py # Full pipeline automation (NEW)
 ├── experiments/            # Các script chạy thực nghiệm và logs
-│   ├── baseline/           # Code chạy Single Agent Baseline
-│   └── multi_agent/        # Code chạy Adaptive Framework
-├── docs/                   # Tài liệu nghiên cứu, nháp bài báo
-└── requirements.txt        # Các thư viện cần thiết (CrewAI, LangChain...)
+│   ├── baseline/           # Single Agent Baseline results
+│   ├── multi_agent/        # Multi-Agent results
+│   ├── benchmark/          # Full benchmark results (NEW)
+│   └── comparison/         # Comparison reports (NEW)
+├── docs/                   # Tài liệu nghiên cứu
+│   ├── PHASE3_GUIDE.md     # Phase 3 usage guide (NEW)
+│   └── PHASE3_SUMMARY.md   # Phase 3 completion summary (NEW)
+└── requirements.txt        # Các thư viện cần thiết
 ```
 
 ---
@@ -74,11 +91,44 @@ Spider2_MultiAgent_Research/
     *   Implement Schema Linker (RAG).
     *   Implement Generator & Validator.
 
-3.  **Phase 3: Benchmark & Optimization**
-    *   Chạy toàn bộ tập test.
-    *   Tinh chỉnh Prompt và Flow.
-    *   So sánh kết quả: Single vs. Adaptive Multi-Agent.
+3.  **Phase 3: Benchmark & Optimization** ✅ **HOÀN THÀNH**
+    *   ✅ Chạy toàn bộ tập test với script `benchmark.py`.
+    *   ✅ Tinh chỉnh Prompt và Flow với retry logic và error handling.
+    *   ✅ So sánh kết quả: Single vs. Adaptive Multi-Agent với `compare_results.py`.
+    *   ✅ Evaluation chi tiết với metrics theo complexity và agent type.
+    *   ✅ Full pipeline script `run_full_pipeline.py` để tự động hóa toàn bộ quy trình.
 
-4.  **Phase 4: Paper Writing**
-    *   Tổng hợp số liệu.
+4.  **Phase 4: Paper Writing** (Next)
+    *   Tổng hợp số liệu từ Phase 3.
+    *   Phân tích kết quả và identify improvements.
     *   Viết báo cáo khoa học theo chuẩn IMRAD.
+
+---
+
+## 🚀 Quick Start (Phase 3)
+
+### Chạy Benchmark
+```bash
+cd src
+
+# Test với 10 items
+python benchmark.py --mode adaptive --max-items 10
+
+# Chạy full dataset
+python benchmark.py --mode adaptive
+```
+
+### Đánh giá kết quả
+```bash
+python evaluate.py --results experiments/benchmark/adaptive_results_*.jsonl
+```
+
+### So sánh các phương pháp
+```bash
+python compare_results.py \
+    --baseline experiments/baseline/results.jsonl \
+    --multi-agent experiments/benchmark/multi_results_*.jsonl \
+    --adaptive experiments/benchmark/adaptive_results_*.jsonl
+```
+
+Xem chi tiết trong [PHASE3_GUIDE.md](docs/PHASE3_GUIDE.md)

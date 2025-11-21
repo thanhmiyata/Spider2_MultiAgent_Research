@@ -1,0 +1,3 @@
+instance_id,db_id,is_correct,complexity,agent_used,error_type,error,latency
+local003,E_commerce,False,HARD,multi,execution_error,Error: no such table: orders,52.06
+local004,E_commerce,False,HARD,multi,execution_error,Error: no such table: orders,23.82
