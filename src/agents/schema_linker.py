@@ -4,8 +4,8 @@ from langchain_core.prompts import PromptTemplate
 from config import DEFAULT_MODEL, CLAUDE_MODEL, get_llm, extract_content
 
 class SchemaLinker:
-    def __init__(self, model_name=CLAUDE_MODEL, max_retries=3):
-        self.llm = get_llm(model_name=model_name, temperature=0)
+    def __init__(self, model_name=CLAUDE_MODEL, max_retries=2):
+        self.llm = get_llm(model_name=model_name, temperature=0, timeout=30)
         self.max_retries = max_retries
         self.prompt = PromptTemplate(
             input_variables=["question", "schema"],
@@ -53,7 +53,7 @@ class SchemaLinker:
         self.chain = self.prompt | self.llm
 
     def link(self, question: str, schema: str) -> str:
-        """Returns the relevant schema subset with retry logic."""
+        """Returns the relevant schema subset with retry logic and timeout."""
         for attempt in range(self.max_retries):
             try:
                 response = self.chain.invoke({"question": question, "schema": schema})
@@ -62,16 +62,16 @@ class SchemaLinker:
                 # Basic validation: check if we got something meaningful
                 if len(linked_schema.strip()) < 10:
                     if attempt < self.max_retries - 1:
-                        time.sleep(1)
+                        time.sleep(0.5)
                         continue
                     return schema  # Fallback to full schema
                 
                 return linked_schema
                 
             except Exception as e:
-                print(f"Error in schema linking (attempt {attempt + 1}/{self.max_retries}): {e}")
+                print(f"[SchemaLinker] Error in schema linking (attempt {attempt + 1}/{self.max_retries}): {e}")
                 if attempt < self.max_retries - 1:
-                    time.sleep(2 ** attempt)  # Exponential backoff
+                    time.sleep(0.5)  # Fixed wait time instead of exponential
                 else:
                     return schema  # Fallback to full schema
         

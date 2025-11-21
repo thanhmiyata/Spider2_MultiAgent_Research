@@ -3,13 +3,16 @@ import time
 from langchain_core.prompts import PromptTemplate
 from dotenv import load_dotenv
 
-load_dotenv()
+try:
+    load_dotenv()
+except Exception as e:
+    pass  # Ignore errors loading .env
 
 from config import DEFAULT_MODEL, GEMINI_MODEL, get_llm, extract_content
 
 class RouterAgent:
-    def __init__(self, model_name=GEMINI_MODEL, max_retries=3):
-        self.llm = get_llm(model_name=model_name, temperature=0)
+    def __init__(self, model_name=GEMINI_MODEL, max_retries=2):
+        self.llm = get_llm(model_name=model_name, temperature=0, timeout=30)
         self.max_retries = max_retries
         self.prompt = PromptTemplate(
             input_variables=["query"],
@@ -52,7 +55,7 @@ class RouterAgent:
         self.chain = self.prompt | self.llm
 
     def route(self, query: str) -> str:
-        """Classifies the query complexity with retry logic."""
+        """Classifies the query complexity with retry logic and timeout."""
         for attempt in range(self.max_retries):
             try:
                 response = self.chain.invoke({"query": query})
@@ -74,14 +77,14 @@ class RouterAgent:
                     
                     # Default to HARD if unclear
                     if attempt < self.max_retries - 1:
-                        time.sleep(1)  # Wait before retry
+                        time.sleep(0.5)  # Short wait before retry
                         continue
                     return "HARD"
                     
             except Exception as e:
-                print(f"Error in routing (attempt {attempt + 1}/{self.max_retries}): {e}")
+                print(f"[RouterAgent] Error in routing (attempt {attempt + 1}/{self.max_retries}): {e}")
                 if attempt < self.max_retries - 1:
-                    time.sleep(2 ** attempt)  # Exponential backoff
+                    time.sleep(0.5)  # Fixed wait time instead of exponential
                 else:
                     return "HARD"  # Default to HARD for safety
         

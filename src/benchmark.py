@@ -78,6 +78,36 @@ def get_simple_schema(db_path):
     except Exception as e:
         return f"Error reading schema: {e}"
 
+def get_optimized_schema(db_path, max_tables=15, max_columns_per_table=20):
+    """
+    Extracts optimized schema with limits to reduce API latency.
+    Tradeoff: Slightly reduced accuracy for much faster response time.
+    """
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name;")
+        tables = cursor.fetchall()
+        
+        # Limit number of tables
+        tables = tables[:max_tables]
+        
+        schema_str = ""
+        for table in tables:
+            table_name = table[0]
+            cursor.execute(f"PRAGMA table_info({table_name});")
+            columns = cursor.fetchall()
+            # Limit columns per table
+            columns = columns[:max_columns_per_table]
+            col_names = [col[1] for col in columns]
+            schema_str += f"Table: {table_name}\nColumns: {', '.join(col_names)}\n\n"
+        
+        conn.close()
+        return schema_str
+    except Exception as e:
+        return f"Error reading schema: {e}"
+
 def run_benchmark(mode="adaptive", max_items=None, db_id=None, random_n=None, auto_select_db=False, run_eval=True):
     """
     Run benchmark in specified mode.
@@ -207,8 +237,9 @@ def run_benchmark(mode="adaptive", max_items=None, db_id=None, random_n=None, au
         
         db_path = db_folder / sqlite_files[0]
         
-        # Get schema (use simple format for now)
-        schema = get_simple_schema(db_path)
+        # Get schema (use optimized format for faster API calls)
+        # Use get_simple_schema() for full accuracy or get_optimized_schema() for speed
+        schema = get_optimized_schema(db_path, max_tables=15, max_columns_per_table=20)
         
         start_time = time.time()
         generated_sql = ""
@@ -219,27 +250,33 @@ def run_benchmark(mode="adaptive", max_items=None, db_id=None, random_n=None, au
         try:
             if mode == "single":
                 # Always use single agent
+                print(f"  [Single] Processing: {question[:60]}...")
                 generated_sql = single.generate(question, schema)
                 agent_used = "single"
                 stats["single_agent"] += 1
                 
             elif mode == "multi":
                 # Always use multi-agent
+                print(f"  [Multi] Processing: {question[:60]}...")
                 generated_sql = mas.run(question, schema, verbose=False)
                 agent_used = "multi"
                 stats["multi_agent"] += 1
                 
             elif mode == "adaptive":
                 # Use router to decide
+                print(f"  [Router] Analyzing: {question[:60]}...")
                 complexity = router.route(question)
+                print(f"  [Router] Classified as: {complexity}")
                 stats["routing"][complexity] = stats["routing"].get(complexity, 0) + 1
                 
                 if complexity == "EASY":
+                    print(f"  [Single] Processing EASY question...")
                     generated_sql = single.generate(question, schema)
                     agent_used = "single"
                     stats["single_agent"] += 1
                 else:
-                    generated_sql = mas.run(question, schema, verbose=False)
+                    print(f"  [Multi] Processing {complexity} question...")
+                    generated_sql = mas.run(question, schema, verbose=True)  # Enable verbose for timing
                     agent_used = "multi"
                     stats["multi_agent"] += 1
             
@@ -255,6 +292,7 @@ def run_benchmark(mode="adaptive", max_items=None, db_id=None, random_n=None, au
             stats["failed"] += 1
             error = str(e)
             latency = time.time() - start_time
+            print(f"  [ERROR] {error}")
         
         # Store result
         result = {

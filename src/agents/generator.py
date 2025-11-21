@@ -4,8 +4,8 @@ from langchain_core.prompts import PromptTemplate
 from config import DEFAULT_MODEL, CLAUDE_MODEL, get_llm, extract_content
 
 class Generator:
-    def __init__(self, model_name=CLAUDE_MODEL, max_retries=3):
-        self.llm = get_llm(model_name=model_name, temperature=0)
+    def __init__(self, model_name=CLAUDE_MODEL, max_retries=2):
+        self.llm = get_llm(model_name=model_name, temperature=0, timeout=30)
         self.max_retries = max_retries
         self.prompt = PromptTemplate(
             input_variables=["question", "schema", "plan"],
@@ -81,7 +81,7 @@ class Generator:
         return sql.strip()
 
     def generate(self, question: str, schema: str, plan: str) -> str:
-        """Generates SQL based on plan with retry logic."""
+        """Generates SQL based on plan with retry logic and timeout."""
         for attempt in range(self.max_retries):
             try:
                 response = self.chain.invoke({"question": question, "schema": schema, "plan": plan})
@@ -91,23 +91,23 @@ class Generator:
                 # Basic validation: check if we got SQL
                 if not sql or len(sql.strip()) < 10:
                     if attempt < self.max_retries - 1:
-                        time.sleep(1)
+                        time.sleep(0.5)
                         continue
                     return ""
                 
                 # Check if it looks like SQL
                 if not re.search(r'\b(SELECT|WITH|INSERT|UPDATE|DELETE)\b', sql, re.IGNORECASE):
                     if attempt < self.max_retries - 1:
-                        time.sleep(1)
+                        time.sleep(0.5)
                         continue
                     return ""
                 
                 return sql
                 
             except Exception as e:
-                print(f"Error in generation (attempt {attempt + 1}/{self.max_retries}): {e}")
+                print(f"[Generator] Error in generation (attempt {attempt + 1}/{self.max_retries}): {e}")
                 if attempt < self.max_retries - 1:
-                    time.sleep(2 ** attempt)
+                    time.sleep(0.5)  # Fixed wait time instead of exponential
                 else:
                     return ""
         

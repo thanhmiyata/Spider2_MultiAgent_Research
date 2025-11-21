@@ -1,14 +1,13 @@
 import re
 import sqlite3
+import time
 from langchain_core.prompts import PromptTemplate
 from config import DEFAULT_MODEL, GEMINI_MODEL, get_llm, extract_content
-import sqlite3
-import tempfile
-import os
 
 class Validator:
-    def __init__(self, model_name=GEMINI_MODEL):
-        self.llm = get_llm(model_name=model_name, temperature=0)
+    def __init__(self, model_name=GEMINI_MODEL, max_retries=2):
+        self.llm = get_llm(model_name=model_name, temperature=0, timeout=30)
+        self.max_retries = max_retries
         self.prompt = PromptTemplate(
             input_variables=["question", "schema", "sql", "syntax_error"],
             template="""
@@ -129,7 +128,7 @@ class Validator:
             return f"Syntax Error Detected: {str(e)}"
 
     def validate(self, question: str, schema: str, sql: str, max_iterations=2) -> str:
-        """Validates and corrects SQL with iterative improvement."""
+        """Validates and corrects SQL with iterative improvement and timeout handling."""
         # Clean SQL first
         sql = sql.replace("```sql", "").replace("```", "").strip()
         
@@ -157,34 +156,47 @@ class Validator:
             if syntax_error_message and syntax_error_message != "Syntax test passed. No obvious ambiguous columns detected.":
                 error_for_prompt = f"Errors Detected: {syntax_error_message}"
             
-            try:
-                response = self.chain.invoke({
-                    "question": question, 
-                    "schema": schema, 
-                    "sql": current_sql,
-                    "syntax_error": error_for_prompt
-                })
-                
-                validation = extract_content(response)
-                
-                if validation.upper() == "CORRECT":
-                    return current_sql
-                else:
-                    # Clean the corrected SQL
-                    corrected = validation.replace("```sql", "").replace("```", "").strip()
-                    # Extract SQL if wrapped in text
-                    sql_match = re.search(r'(SELECT|WITH|INSERT|UPDATE|DELETE)', corrected, re.IGNORECASE)
-                    if sql_match:
-                        corrected = corrected[sql_match.start():]
+            # Try to validate with retry logic
+            validation_success = False
+            for attempt in range(self.max_retries):
+                try:
+                    response = self.chain.invoke({
+                        "question": question, 
+                        "schema": schema, 
+                        "sql": current_sql,
+                        "syntax_error": error_for_prompt
+                    })
                     
-                    # If correction is same as original, break to avoid loop
-                    if corrected.strip() == current_sql.strip():
+                    validation = extract_content(response)
+                    validation_success = True
+                    
+                    if validation.upper() == "CORRECT":
                         return current_sql
+                    else:
+                        # Clean the corrected SQL
+                        corrected = validation.replace("```sql", "").replace("```", "").strip()
+                        # Extract SQL if wrapped in text
+                        sql_match = re.search(r'(SELECT|WITH|INSERT|UPDATE|DELETE)', corrected, re.IGNORECASE)
+                        if sql_match:
+                            corrected = corrected[sql_match.start():]
+                        
+                        # If correction is same as original, break to avoid loop
+                        if corrected.strip() == current_sql.strip():
+                            return current_sql
+                        
+                        current_sql = corrected.strip()
                     
-                    current_sql = corrected.strip()
+                    break  # Success, exit retry loop
                     
-            except Exception as e:
-                print(f"Error in validation iteration {iteration + 1}: {e}")
+                except Exception as e:
+                    print(f"[Validator] Error in validation attempt {attempt + 1}/{self.max_retries}: {e}")
+                    if attempt < self.max_retries - 1:
+                        time.sleep(0.5)
+                    else:
+                        # Failed all retries, return current SQL
+                        return current_sql
+            
+            if not validation_success:
                 return current_sql
         
         return current_sql

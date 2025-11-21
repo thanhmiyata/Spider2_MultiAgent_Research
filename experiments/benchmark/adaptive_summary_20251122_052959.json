@@ -1,0 +1,17 @@
+{
+  "mode": "adaptive",
+  "stats": {
+    "total": 2,
+    "success": 2,
+    "failed": 0,
+    "single_agent": 0,
+    "multi_agent": 2,
+    "routing": {
+      "EASY": 0,
+      "MEDIUM": 0,
+      "HARD": 2
+    }
+  },
+  "output_file": "/Users/Krizpham/Thac si/Spider2_MultiAgent_Research/experiments/benchmark/adaptive_results_20251122_052959.jsonl",
+  "timestamp": "20251122_052959"
+}

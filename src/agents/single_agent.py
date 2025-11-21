@@ -2,13 +2,16 @@ import os
 from langchain_core.prompts import PromptTemplate
 from dotenv import load_dotenv
 
-load_dotenv()
+try:
+    load_dotenv()
+except Exception as e:
+    pass  # Ignore errors loading .env
 
-from config import DEFAULT_MODEL, get_llm
+from config import DEFAULT_MODEL, get_llm, extract_content
 
 class SingleAgent:
     def __init__(self, model_name=DEFAULT_MODEL):
-        self.llm = get_llm(model_name=model_name, temperature=0)
+        self.llm = get_llm(model_name=model_name, temperature=0, timeout=30)
         self.prompt = PromptTemplate(
             input_variables=["question", "schema"],
             template="""
@@ -29,9 +32,9 @@ class SingleAgent:
         """Generates SQL for a given question and schema."""
         try:
             response = self.chain.invoke({"question": question, "schema": schema})
-            return response.content.strip()
+            return extract_content(response)
         except Exception as e:
-            print(f"Error in generation: {e}")
+            print(f"Error in single agent generation: {e}")
             return ""
 
 if __name__ == "__main__":

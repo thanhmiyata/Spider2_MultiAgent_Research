@@ -4,49 +4,107 @@ from dotenv import load_dotenv
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_anthropic import ChatAnthropic
 
-# Load .env from project root
-env_path = Path(__file__).parent.parent / '.env'
-load_dotenv(dotenv_path=env_path)
+# Load .env from project root (with error handling)
+try:
+    env_path = Path(__file__).parent.parent / '.env'
+    if env_path.exists():
+        load_dotenv(dotenv_path=str(env_path))
+    else:
+        load_dotenv()  # Fallback to default search
+except Exception as e:
+    print(f"Warning: Could not load .env file: {e}")
+    load_dotenv()  # Fallback to default search
 
 # Model Configuration
-# Model Configuration
-DEFAULT_MODEL = "claude-3-haiku-20240307" 
-GEMINI_MODEL = "gemini-flash-latest"
-CLAUDE_MODEL = "claude-3-haiku-20240307"
+# Updated to fastest models: Claude 3.5 Haiku and Gemini 2.0 Flash (or fallback to gemini-flash-latest)
+DEFAULT_MODEL = "claude-3-5-haiku-20241022"  # Faster than Claude 3 Haiku (~40% improvement)
+GEMINI_MODEL = "gemini-2.0-flash-001"        # Gemini 2.0 Flash (fast), fallback to gemini-flash-latest if not available
+CLAUDE_MODEL = "claude-3-5-haiku-20241022"   # Using Claude 3.5 Haiku for schema linking
 
 # API Keys
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-ANTHROPIC_API_KEY = os.getenv("CLAUDE_API_KEY") 
-print(f"DEBUG: Loaded ANTHROPIC_API_KEY: {ANTHROPIC_API_KEY}")
+ANTHROPIC_API_KEY = os.getenv("CLAUDE_API_KEY")
 
-def get_llm(model_name=DEFAULT_MODEL, temperature=0):
-    """Factory function to get the LLM instance based on model name."""
+def get_llm(model_name=DEFAULT_MODEL, temperature=0, timeout=60):
+    """Factory function to get the LLM instance based on model name with timeout and fallback."""
     if "gemini" in model_name.lower():
-        return ChatGoogleGenerativeAI(model=model_name, temperature=temperature)
+        try:
+            return ChatGoogleGenerativeAI(
+                model=model_name, 
+                temperature=temperature,
+                request_timeout=timeout
+            )
+        except Exception as e:
+            print(f"Warning: Model {model_name} not available: {e}")
+            print(f"Falling back to gemini-1.5-flash")
+            return ChatGoogleGenerativeAI(
+                model="gemini-1.5-flash", 
+                temperature=temperature,
+                request_timeout=timeout
+            )
     elif "claude" in model_name.lower():
-        return ChatAnthropic(model=model_name, temperature=temperature, api_key=ANTHROPIC_API_KEY)
+        try:
+            return ChatAnthropic(
+                model=model_name, 
+                temperature=temperature, 
+                api_key=ANTHROPIC_API_KEY,
+                timeout=timeout
+            )
+        except Exception as e:
+            print(f"Warning: Model {model_name} not available: {e}")
+            print(f"Falling back to claude-3-5-sonnet-20241022")
+            return ChatAnthropic(
+                model="claude-3-5-sonnet-20241022", 
+                temperature=temperature, 
+                api_key=ANTHROPIC_API_KEY,
+                timeout=timeout
+            )
     else:
-        # Default to Gemini if unknown, or raise error
-        print(f"Warning: Unknown model {model_name}, defaulting to Gemini Flash.")
-        return ChatGoogleGenerativeAI(model="gemini-flash-latest", temperature=temperature)
+        # Default to Gemini if unknown
+        print(f"Warning: Unknown model {model_name}, defaulting to Gemini 1.5 Flash.")
+        return ChatGoogleGenerativeAI(
+            model="gemini-1.5-flash", 
+            temperature=temperature,
+            request_timeout=timeout
+        )
 
-def extract_content(response) -> str:
-    """Extracts text content from LLM response, handling string or list of blocks."""
-    content = response.content
-    if isinstance(content, str):
-        return content.strip()
+def extract_content(response, max_depth=5) -> str:
+    """
+    Extracts text content from LLM response with safety guards.
+    Handles: string, list of blocks, BaseMessage objects.
+    Includes depth limit to prevent infinite loops.
+    """
+    def _extract(obj, depth=0):
+        if depth > max_depth:
+            return ""
+        
+        # Handle string
+        if isinstance(obj, str):
+            return obj.strip()
+        
+        # Handle objects with .content attribute (BaseMessage, etc)
+        if hasattr(obj, 'content'):
+            return _extract(obj.content, depth + 1)
+        
+        # Handle lists
+        if isinstance(obj, list):
+            text_parts = []
+            for block in obj:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    text_parts.append(block.get("text", ""))
+                elif hasattr(block, "text"):
+                    text_parts.append(block.text)
+                elif isinstance(block, str):
+                    text_parts.append(block)
+                else:
+                    text_parts.append(str(block))
+            return "".join(text_parts).strip()
+        
+        # Fallback
+        return str(obj).strip()
     
-    if isinstance(content, list):
-        text_parts = []
-        for block in content:
-            if isinstance(block, dict) and block.get("type") == "text":
-                text_parts.append(block.get("text", ""))
-            elif hasattr(block, "text"):
-                text_parts.append(block.text)
-            elif isinstance(block, str):
-                text_parts.append(block)
-            else:
-                text_parts.append(str(block))
-        return "".join(text_parts).strip()
-    
-    return str(content).strip()
+    try:
+        return _extract(response)
+    except Exception as e:
+        print(f"Warning: Error extracting content: {e}")
+        return ""
