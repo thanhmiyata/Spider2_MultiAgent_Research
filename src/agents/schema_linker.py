@@ -1,9 +1,17 @@
 import time
 import re
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
 from langchain_core.prompts import PromptTemplate
+
+# Try to import sklearn, provide helpful error if not available
+try:
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from sklearn.metrics.pairwise import cosine_similarity
+    SKLEARN_AVAILABLE = True
+except ImportError:
+    SKLEARN_AVAILABLE = False
+    print("Warning: scikit-learn not installed. RAG features will be disabled.")
+    print("Install with: pip install scikit-learn")
 
 from config import DEFAULT_MODEL, CLAUDE_MODEL, get_llm, extract_content
 
@@ -11,9 +19,17 @@ class SchemaLinker:
     def __init__(self, model_name=CLAUDE_MODEL, max_retries=2, use_rag=True, top_k=5):
         self.llm = get_llm(model_name=model_name, temperature=0, timeout=30)
         self.max_retries = max_retries
-        self.use_rag = use_rag
+        self.use_rag = use_rag and SKLEARN_AVAILABLE  # Disable RAG if sklearn not available
         self.top_k = top_k
-        self.vectorizer = TfidfVectorizer(stop_words='english', max_features=500)
+        
+        if use_rag and not SKLEARN_AVAILABLE:
+            print("Warning: RAG requested but scikit-learn not available. RAG disabled.")
+        
+        if SKLEARN_AVAILABLE:
+            self.vectorizer = TfidfVectorizer(stop_words='english', max_features=500)
+        else:
+            self.vectorizer = None
+            
         self.prompt = PromptTemplate(
             input_variables=["question", "schema"],
             template="""
@@ -62,7 +78,7 @@ class SchemaLinker:
     def _parse_schema_to_tables(self, schema: str) -> dict:
         """
         Parse schema string to extract tables with their columns and types.
-        Returns: dict with table_name -> {'columns': [...], 'text': 'table description'}
+        Returns: dict with table_name -> {'columns': [list of columns], 'text': 'searchable text'}
         """
         tables = {}
         current_table = None
@@ -79,7 +95,9 @@ class SchemaLinker:
             # Detect columns
             elif current_table and line.startswith('Columns:'):
                 columns_text = line.replace('Columns:', '').strip()
-                tables[current_table]['columns'] = columns_text
+                # Store both as string (for text) and parse into list for later use
+                tables[current_table]['columns_text'] = columns_text
+                tables[current_table]['columns'] = [col.strip() for col in columns_text.split(',')]
                 # Create searchable text: table name + column names
                 tables[current_table]['text'] = f"{current_table} {columns_text}"
             
@@ -97,7 +115,8 @@ class SchemaLinker:
                 if match:
                     col_name = match.group(1)
                     col_type = match.group(2)
-                    tables[current_table]['columns'].append(f"{col_name} ({col_type})")
+                    col_entry = f"{col_name} ({col_type})"
+                    tables[current_table]['columns'].append(col_entry)
                     tables[current_table]['text'] += f" {col_name}"
         
         return tables
@@ -139,10 +158,11 @@ class SchemaLinker:
             filtered_schema = ""
             for table_name in top_tables:
                 filtered_schema += f"Table: {table_name}\n"
-                if isinstance(tables[table_name]['columns'], list):
+                # Use the original columns_text if available, otherwise join the list
+                if 'columns_text' in tables[table_name]:
+                    filtered_schema += f"Columns: {tables[table_name]['columns_text']}\n\n"
+                elif tables[table_name]['columns']:
                     filtered_schema += f"Columns: {', '.join(tables[table_name]['columns'])}\n\n"
-                else:
-                    filtered_schema += f"Columns: {tables[table_name]['columns']}\n\n"
             
             return filtered_schema.strip()
             

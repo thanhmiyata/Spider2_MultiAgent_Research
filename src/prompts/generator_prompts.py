@@ -162,15 +162,15 @@ MANDATORY RULES (Follow STRICTLY):
    - Ensure GROUP BY includes all non-aggregated SELECT columns
    - Use DISTINCT when needed to remove duplicates
 
-{examples}
+{{examples}}
 
 Schema:
-{schema}
+{{schema}}
 
-Question: {question}
+Question: {{question}}
 
 Execution Plan:
-{plan}
+{{plan}}
 
 Generate the SQL query following ALL rules above. Return ONLY the raw SQL query.
 Do NOT include:
@@ -182,12 +182,14 @@ Do NOT include:
 def get_generator_prompt_template(include_examples=True):
     """
     Returns the generator prompt template with optional examples.
+    Uses double curly braces for LangChain placeholders.
     
     Args:
         include_examples: If True, include SQLite-specific examples in the prompt
     
     Returns:
-        str: Formatted prompt template
+        str: Formatted prompt template ready for LangChain PromptTemplate
     """
     examples = SQLITE_EXAMPLES if include_examples else ""
-    return SQLITE_GENERATOR_TEMPLATE.format(examples=examples, schema="{schema}", question="{question}", plan="{plan}")
+    # Replace {{examples}} with actual content, keep {{schema}}, {{question}}, {{plan}} for LangChain
+    return SQLITE_GENERATOR_TEMPLATE.replace("{{examples}}", examples)

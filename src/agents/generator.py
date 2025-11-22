@@ -9,8 +9,14 @@ class Generator:
         self.llm = get_llm(model_name=model_name, temperature=0, timeout=30)
         self.max_retries = max_retries
         
-        # Use the new prompt template from generator_prompts.py
+        # Get the prompt template with proper formatting
         prompt_template = get_generator_prompt_template(include_examples=include_examples)
+        
+        # Replace double braces with single braces for LangChain
+        prompt_template = prompt_template.replace("{{schema}}", "{schema}")
+        prompt_template = prompt_template.replace("{{question}}", "{question}")
+        prompt_template = prompt_template.replace("{{plan}}", "{plan}")
+        
         self.prompt = PromptTemplate(
             input_variables=["question", "schema", "plan"],
             template=prompt_template
