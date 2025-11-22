@@ -370,7 +370,8 @@ def get_schema_from_db(db_path: str) -> Dict[str, List[str]]:
                 continue
             
             # Get column information for each table
-            # PRAGMA statements don't support parameterized queries, but we've validated the name
+            # SECURITY: Table name validated above - only alphanumeric and underscore allowed
+            # PRAGMA statements don't support parameterized queries, but validation prevents injection
             cursor.execute(f"PRAGMA table_info({table_name});")
             columns = cursor.fetchall()
             

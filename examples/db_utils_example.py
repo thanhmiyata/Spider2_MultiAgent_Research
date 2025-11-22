@@ -25,15 +25,13 @@ logging.basicConfig(
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
-from utils.db_utils import get_connection, load_schema_metadata, get_schema_from_db
+from utils.db_utils import (
+    get_connection, 
+    load_schema_metadata, 
+    get_schema_from_db,
+    _is_valid_table_name
+)
 
-
-def _is_valid_table_name(name: str) -> bool:
-    """Validate table name to prevent SQL injection."""
-    if not name or not isinstance(name, str):
-        return False
-    pattern = r'^[a-zA-Z_][a-zA-Z0-9_]*$'
-    return bool(re.match(pattern, name))
 
 
 
@@ -133,12 +131,13 @@ def example_4_query_with_schema():
     cursor = conn.cursor()
     
     for table_name, columns in schema.items():
-        # Validate table name before using in SQL
+        # Validate table name before using in SQL to prevent injection
         if not _is_valid_table_name(table_name):
             print(f"\nSkipping table with invalid name: {table_name}")
             continue
         
-        # Count rows - table name validated, safe to use
+        # SECURITY: Table name has been validated - safe to use in f-string
+        # Only alphanumeric and underscore characters allowed
         cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
         count = cursor.fetchone()[0]
         
@@ -148,6 +147,7 @@ def example_4_query_with_schema():
         
         # Sample first row if table is not empty
         if count > 0:
+            # SECURITY: Table name validated above - safe to use
             cursor.execute(f"SELECT * FROM {table_name} LIMIT 1")
             sample = cursor.fetchone()
             print(f"  Sample data: {sample}")
