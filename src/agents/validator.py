@@ -127,8 +127,8 @@ class Validator:
         except Exception as e:
             return f"Syntax Error Detected: {str(e)}"
 
-    def validate(self, question: str, schema: str, sql: str, max_iterations=2) -> str:
-        """Validates and corrects SQL with iterative improvement and timeout handling."""
+    def validate(self, question: str, schema: str, sql: str, max_iterations=3) -> str:
+        """Validates and corrects SQL with iterative improvement (3 iterations) and timeout handling."""
         # Clean SQL first
         sql = sql.replace("```sql", "").replace("```", "").strip()
         

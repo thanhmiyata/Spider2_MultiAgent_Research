@@ -2,64 +2,24 @@ import time
 import re
 from langchain_core.prompts import PromptTemplate
 from config import DEFAULT_MODEL, CLAUDE_MODEL, get_llm, extract_content
+from prompts.generator_prompts import get_generator_prompt_template
 
 class Generator:
-    def __init__(self, model_name=CLAUDE_MODEL, max_retries=2):
+    def __init__(self, model_name=CLAUDE_MODEL, max_retries=2, include_examples=True):
         self.llm = get_llm(model_name=model_name, temperature=0, timeout=30)
         self.max_retries = max_retries
+        
+        # Get the prompt template with proper formatting
+        prompt_template = get_generator_prompt_template(include_examples=include_examples)
+        
+        # Replace double braces with single braces for LangChain
+        prompt_template = prompt_template.replace("{{schema}}", "{schema}")
+        prompt_template = prompt_template.replace("{{question}}", "{question}")
+        prompt_template = prompt_template.replace("{{plan}}", "{plan}")
+        
         self.prompt = PromptTemplate(
             input_variables=["question", "schema", "plan"],
-            template="""
-            You are an expert SQL Developer specializing in SQLite.
-            Generate a valid, production-ready SQL query based on the provided schema and execution plan.
-            
-            MANDATORY RULES (Follow STRICTLY):
-            
-            1. **Table Aliases**: 
-               - ALWAYS use short, meaningful aliases for EVERY table (e.g., `orders AS o`, `customers AS c`)
-               - Use consistent naming (lowercase, 1-3 characters preferred)
-            
-            2. **Column Qualification**:
-               - ALWAYS prefix EVERY column with its table alias: `o.order_id`, `c.customer_name`
-               - This prevents "ambiguous column name" errors
-               - Even in WHERE, JOIN, GROUP BY, ORDER BY clauses
-            
-            3. **SQLite Syntax**:
-               - Use SQLite-compatible functions only
-               - No proprietary extensions
-            
-            4. **Date/Time Functions**:
-               - `STRFTIME('%Y-%m-%d', date_col)` for date formatting
-               - `JULIANDAY(date1) - JULIANDAY(date2)` for date differences
-               - `DATE(date_col)` to extract date part
-               - `STRFTIME('%Y', date_col)` for year extraction
-            
-            5. **Complex Features**:
-               - Use CTEs (WITH ... AS ...) for complex multi-step logic
-               - Use window functions: `RANK() OVER (PARTITION BY ... ORDER BY ...)`
-               - Use `NTILE(n)` for percentile/quantile calculations
-               - Use `CASE WHEN ... THEN ... ELSE ... END` for conditional logic
-            
-            6. **Best Practices**:
-               - Use proper JOIN syntax (INNER JOIN, LEFT JOIN, etc.)
-               - Include all necessary JOIN conditions in ON clause
-               - Use parentheses for complex WHERE conditions
-               - Ensure GROUP BY includes all non-aggregated SELECT columns
-            
-            Schema:
-            {schema}
-
-            Question: {question}
-
-            Execution Plan:
-            {plan}
-
-            Generate the SQL query following ALL rules above. Return ONLY the raw SQL query.
-            Do NOT include:
-            - Markdown code blocks (```sql ... ```)
-            - Explanations or comments
-            - Any text before or after the SQL
-            """
+            template=prompt_template
         )
         self.chain = self.prompt | self.llm
 
