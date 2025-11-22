@@ -1,0 +1,20 @@
+[
+  {
+    "table_name": "customers",
+    "columns": [
+      "customer_id",
+      "customer_unique_id",
+      "customer_zip_code_prefix",
+      "customer_city",
+      "customer_state"
+    ],
+    "description": "customers table for E-commerce database",
+    "column_descriptions": {
+      "customer_id": "TEXT column",
+      "customer_unique_id": "TEXT column",
+      "customer_zip_code_prefix": "INTEGER column",
+      "customer_city": "TEXT column",
+      "customer_state": "TEXT column"
+    }
+  }
+]
