@@ -20,7 +20,8 @@ from utils.db_utils import (
     get_connection,
     load_schema_metadata,
     get_schema_from_db,
-    _parse_schema_json
+    _parse_schema_json,
+    _is_valid_table_name
 )
 
 
@@ -436,6 +437,59 @@ class TestParseSchemaJson(unittest.TestCase):
         self.assertIn('products', result)
 
 
+class TestTableNameValidation(unittest.TestCase):
+    """Test cases for _is_valid_table_name function."""
+    
+    def test_valid_table_names(self):
+        """Test that valid table names are accepted."""
+        valid_names = [
+            'users',
+            'user_accounts',
+            'Users',
+            'TABLE_NAME',
+            '_private_table',
+            'table123',
+            'order_items_2023'
+        ]
+        
+        for name in valid_names:
+            with self.subTest(name=name):
+                self.assertTrue(_is_valid_table_name(name))
+    
+    def test_invalid_table_names(self):
+        """Test that invalid table names are rejected."""
+        invalid_names = [
+            '',  # Empty string
+            '123table',  # Starts with digit
+            'table name',  # Contains space
+            'table-name',  # Contains hyphen
+            'table.name',  # Contains dot
+            'table;DROP TABLE users;',  # SQL injection attempt
+            'table--comment',  # SQL comment
+            "table'OR'1'='1",  # SQL injection
+            None,  # None value
+            123,  # Not a string
+        ]
+        
+        for name in invalid_names:
+            with self.subTest(name=name):
+                self.assertFalse(_is_valid_table_name(name))
+    
+    def test_sql_injection_attempts(self):
+        """Test that SQL injection attempts are blocked."""
+        injection_attempts = [
+            "users; DROP TABLE users;",
+            "users' OR '1'='1",
+            "users--",
+            "users/*comment*/",
+            "users UNION SELECT * FROM passwords",
+        ]
+        
+        for attempt in injection_attempts:
+            with self.subTest(attempt=attempt):
+                self.assertFalse(_is_valid_table_name(attempt))
+
+
 class TestIntegrationWithRealDatabase(unittest.TestCase):
     """Integration tests with the actual Spider 2.0 Lite database."""
     
@@ -505,6 +559,7 @@ def run_tests():
     suite.addTests(loader.loadTestsFromTestCase(TestLoadSchemaMetadata))
     suite.addTests(loader.loadTestsFromTestCase(TestGetSchemaFromDB))
     suite.addTests(loader.loadTestsFromTestCase(TestParseSchemaJson))
+    suite.addTests(loader.loadTestsFromTestCase(TestTableNameValidation))
     suite.addTests(loader.loadTestsFromTestCase(TestIntegrationWithRealDatabase))
     
     # Run tests

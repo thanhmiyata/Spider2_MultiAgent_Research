@@ -10,13 +10,31 @@ This script demonstrates:
 """
 
 import sys
+import re
+import logging
 from pathlib import Path
+
+# Configure logging for the example
+logging.basicConfig(
+    level=logging.INFO,
+    format='[%(asctime)s] %(levelname)s - %(name)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 
 # Add src to path
 PROJECT_ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(PROJECT_ROOT / "src"))
 
 from utils.db_utils import get_connection, load_schema_metadata, get_schema_from_db
+
+
+def _is_valid_table_name(name: str) -> bool:
+    """Validate table name to prevent SQL injection."""
+    if not name or not isinstance(name, str):
+        return False
+    pattern = r'^[a-zA-Z_][a-zA-Z0-9_]*$'
+    return bool(re.match(pattern, name))
+
 
 
 def example_1_basic_connection():
@@ -115,7 +133,12 @@ def example_4_query_with_schema():
     cursor = conn.cursor()
     
     for table_name, columns in schema.items():
-        # Count rows
+        # Validate table name before using in SQL
+        if not _is_valid_table_name(table_name):
+            print(f"\nSkipping table with invalid name: {table_name}")
+            continue
+        
+        # Count rows - table name validated, safe to use
         cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
         count = cursor.fetchone()[0]
         

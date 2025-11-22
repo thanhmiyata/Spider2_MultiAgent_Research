@@ -10,17 +10,36 @@ import sqlite3
 import json
 import logging
 import os
+import re
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
 
-# Configure logging
+# Get logger for this module
+# Note: Application should configure logging; we just get the logger
 logger = logging.getLogger(__name__)
-logging.basicConfig(
-    level=logging.INFO,
-    format='[%(asctime)s] %(levelname)s - %(name)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
+
+
+def _is_valid_table_name(name: str) -> bool:
+    """
+    Validate that a table name is safe to use in SQL queries.
+    
+    SQLite allows alphanumeric characters, underscores, and some special chars.
+    This is a conservative check to prevent SQL injection.
+    
+    Args:
+        name: Table name to validate
+    
+    Returns:
+        bool: True if name is valid, False otherwise
+    """
+    if not name or not isinstance(name, str):
+        return False
+    
+    # Allow alphanumeric, underscore, and must not start with digit
+    # SQLite also allows some special chars but we're conservative
+    pattern = r'^[a-zA-Z_][a-zA-Z0-9_]*$'
+    return bool(re.match(pattern, name))
 
 
 def get_connection(db_path: Optional[str] = None) -> sqlite3.Connection:
@@ -345,7 +364,13 @@ def get_schema_from_db(db_path: str) -> Dict[str, List[str]]:
         for table_tuple in tables:
             table_name = table_tuple[0]
             
+            # Validate table name to prevent SQL injection
+            if not _is_valid_table_name(table_name):
+                logger.warning(f"Skipping table with invalid name: {table_name}")
+                continue
+            
             # Get column information for each table
+            # PRAGMA statements don't support parameterized queries, but we've validated the name
             cursor.execute(f"PRAGMA table_info({table_name});")
             columns = cursor.fetchall()
             
