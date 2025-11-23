@@ -1,12 +1,32 @@
 import time
+import re
+from typing import List, Set
 from langchain_core.prompts import PromptTemplate
 
 from config import DEFAULT_MODEL, GEMINI_MODEL, get_llm, extract_content
 
+# SQL keywords to filter out when extracting table names
+SQL_KEYWORDS = {
+    'table', 'tables', 'from', 'join', 'where', 'select', 
+    'group', 'order', 'having', 'inner', 'left', 'right', 
+    'outer', 'cross', 'natural'
+}
+
+# Preview constants for output formatting
+MAX_PREVIEW_LENGTH = 100
+MAX_PREVIEW_COLUMNS = 5
+
+
+class MissingTableError(Exception):
+    """Exception raised when required tables are missing from the schema."""
+    pass
+
+
 class Planner:
-    def __init__(self, model_name=GEMINI_MODEL, max_retries=2):
+    def __init__(self, model_name=GEMINI_MODEL, max_retries=2, enable_schema_validation=True):
         self.llm = get_llm(model_name=model_name, temperature=0, timeout=30)
         self.max_retries = max_retries
+        self.enable_schema_validation = enable_schema_validation
         self.prompt = PromptTemplate(
             input_variables=["question", "schema"],
             template="""
@@ -68,8 +88,116 @@ class Planner:
         )
         self.chain = self.prompt | self.llm
 
+    def _extract_tables_from_schema(self, schema: str) -> Set[str]:
+        """
+        Extract all table names from the schema string.
+        
+        Args:
+            schema: Schema string in various formats
+            
+        Returns:
+            Set of table names found in the schema
+        """
+        tables = set()
+        
+        # Parse different schema formats
+        for line in schema.split('\n'):
+            line = line.strip()
+            
+            # Format: "Table: table_name" or "1. table_name"
+            if line.startswith('Table:'):
+                table_name = line.replace('Table:', '').strip()
+                if table_name:
+                    tables.add(table_name)
+            elif re.match(r'^\d+\.\s+(\w+)', line):
+                match = re.match(r'^\d+\.\s+(\w+)', line)
+                if match:
+                    tables.add(match.group(1))
+            
+            # Format: "CREATE TABLE table_name"
+            elif line.startswith('CREATE TABLE'):
+                match = re.search(r'CREATE TABLE\s+`?(\w+)`?', line, re.IGNORECASE)
+                if match:
+                    tables.add(match.group(1))
+        
+        return tables
+
+    def _extract_required_tables_from_plan(self, plan: str) -> Set[str]:
+        """
+        Extract table names mentioned in the execution plan.
+        
+        Args:
+            plan: The generated execution plan
+            
+        Returns:
+            Set of table names referenced in the plan
+        """
+        required_tables = set()
+        
+        # Common patterns for table references in plans
+        patterns = [
+            r'table[s]?\s+`?(\w+)`?',  # "table orders", "tables orders"
+            r'from\s+`?(\w+)`?',        # "from orders"
+            r'join\s+`?(\w+)`?',        # "join customers"
+            r'`(\w+)`\s+table',         # "`orders` table"
+            r'\b(\w+)\s+table\b',       # "orders table"
+        ]
+        
+        plan_lower = plan.lower()
+        
+        for pattern in patterns:
+            matches = re.finditer(pattern, plan_lower, re.IGNORECASE)
+            for match in matches:
+                table_name = match.group(1)
+                # Filter out SQL keywords using module constant
+                if table_name not in SQL_KEYWORDS:
+                    required_tables.add(table_name)
+        
+        return required_tables
+
+    def _validate_schema(self, plan: str, schema: str) -> None:
+        """
+        Validate that all required tables mentioned in the plan exist in the schema.
+        
+        Args:
+            plan: The generated execution plan
+            schema: The schema string
+            
+        Raises:
+            MissingTableError: If required tables are missing from the schema
+        """
+        if not self.enable_schema_validation:
+            return
+        
+        # Extract tables from schema and plan
+        available_tables = self._extract_tables_from_schema(schema)
+        required_tables = self._extract_required_tables_from_plan(plan)
+        
+        # Check for missing tables
+        missing_tables = required_tables - available_tables
+        
+        if missing_tables:
+            error_msg = f"MISSING_TABLE: Required tables {missing_tables} not found in provided schema. Available tables: {available_tables}"
+            print(f"[Planner] Schema validation failed: {error_msg}")
+            raise MissingTableError(error_msg)
+        
+        if required_tables:
+            print(f"[Planner] Schema validation passed. Required tables {required_tables} are available.")
+
     def plan(self, question: str, schema: str) -> str:
-        """Generates a logical plan with retry logic and timeout."""
+        """
+        Generates a logical plan with retry logic, timeout, and schema validation.
+        
+        Args:
+            question: User's natural language question
+            schema: Database schema string
+            
+        Returns:
+            Generated execution plan
+            
+        Raises:
+            MissingTableError: If plan requires tables not in the schema
+        """
         for attempt in range(self.max_retries):
             try:
                 response = self.chain.invoke({"question": question, "schema": schema})
@@ -82,8 +210,18 @@ class Planner:
                         continue
                     return "Proceed directly to SQL generation."
                 
+                # Schema validity check
+                try:
+                    self._validate_schema(plan, schema)
+                except MissingTableError:
+                    # Re-raise to let caller handle - preserves traceback
+                    raise
+                
                 return plan
                 
+            except MissingTableError:
+                # Re-raise schema validation errors
+                raise
             except Exception as e:
                 print(f"[Planner] Error in planning (attempt {attempt + 1}/{self.max_retries}): {e}")
                 if attempt < self.max_retries - 1:

@@ -271,7 +271,8 @@ def _parse_schema_json(data: Union[Dict, List]) -> Dict[str, Dict[str, Union[Lis
             schema_metadata[table_name] = {
                 'columns': columns,
                 'description': table_data.get('description', ''),
-                'column_descriptions': table_data.get('column_descriptions', {})
+                'column_descriptions': table_data.get('column_descriptions', {}),
+                'foreign_keys': table_data.get('foreign_keys', [])
             }
     
     # Handle dict format: {"table_name": {"columns": [...], ...}, ...}
@@ -293,7 +294,8 @@ def _parse_schema_json(data: Union[Dict, List]) -> Dict[str, Dict[str, Union[Lis
                 schema_metadata[table_name] = {
                     'columns': columns,
                     'description': '',
-                    'column_descriptions': {}
+                    'column_descriptions': {},
+                    'foreign_keys': []
                 }
         else:
             # More complex formats
@@ -303,7 +305,8 @@ def _parse_schema_json(data: Union[Dict, List]) -> Dict[str, Dict[str, Union[Lis
                     schema_metadata[table_name] = {
                         'columns': table_data,
                         'description': '',
-                        'column_descriptions': {}
+                        'column_descriptions': {},
+                        'foreign_keys': []
                     }
                 elif isinstance(table_data, dict):
                     # Standard format: {"table": {"columns": [...], ...}}
@@ -315,7 +318,8 @@ def _parse_schema_json(data: Union[Dict, List]) -> Dict[str, Dict[str, Union[Lis
                     schema_metadata[table_name] = {
                         'columns': columns,
                         'description': table_data.get('description', ''),
-                        'column_descriptions': table_data.get('column_descriptions', {})
+                        'column_descriptions': table_data.get('column_descriptions', {}),
+                        'foreign_keys': table_data.get('foreign_keys', [])
                     }
                 else:
                     logger.warning(f"Skipping invalid table data for {table_name}: {table_data}")
@@ -389,3 +393,59 @@ def get_schema_from_db(db_path: str) -> Dict[str, List[str]]:
     finally:
         if conn:
             conn.close()
+
+
+def build_adjacency_list(schema_metadata: Dict[str, Dict]) -> Dict[str, List[str]]:
+    """
+    Build an adjacency list representing table relationships from foreign keys.
+    
+    This function constructs a graph representation where each table is connected to
+    other tables it has foreign key relationships with. The relationship is bidirectional
+    (if Table_A has a foreign key to Table_B, both A->B and B->A are included).
+    
+    Args:
+        schema_metadata: Dictionary of table metadata including foreign_keys
+                        Format: {"table_name": {"columns": [...], "foreign_keys": [...]}}
+    
+    Returns:
+        Dict[str, List[str]]: Adjacency list mapping each table to its related tables
+        Example: {"orders": ["customers", "order_items"], "customers": ["orders", "reviews"]}
+    
+    Example:
+        >>> metadata = load_schema_metadata('/path/to/tables.json')
+        >>> adj_list = build_adjacency_list(metadata)
+        >>> neighbors = adj_list.get('orders', [])
+    """
+    adjacency_list = {}
+    
+    # Initialize adjacency list for all tables
+    for table_name in schema_metadata.keys():
+        adjacency_list[table_name] = []
+    
+    # Build relationships from foreign keys
+    for table_name, table_data in schema_metadata.items():
+        foreign_keys = table_data.get('foreign_keys', [])
+        
+        for fk in foreign_keys:
+            if isinstance(fk, dict):
+                # Parse "to" field to get referenced table
+                # Format: "table_name.column_name" or just "table_name"
+                to_field = fk.get('to', '')
+                if '.' in to_field:
+                    referenced_table = to_field.split('.')[0]
+                else:
+                    referenced_table = to_field
+                
+                # Add bidirectional relationship
+                if referenced_table and referenced_table in adjacency_list:
+                    # Add referenced_table to current table's neighbors
+                    if referenced_table not in adjacency_list[table_name]:
+                        adjacency_list[table_name].append(referenced_table)
+                    
+                    # Add current table to referenced_table's neighbors (bidirectional)
+                    if table_name not in adjacency_list[referenced_table]:
+                        adjacency_list[referenced_table].append(table_name)
+    
+    logger.info(f"Built adjacency list for {len(adjacency_list)} tables")
+    return adjacency_list
+
