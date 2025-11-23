@@ -1,6 +1,7 @@
 import re
 import sqlite3
 import time
+from typing import Optional, Tuple
 from langchain_core.prompts import PromptTemplate
 from config import DEFAULT_MODEL, GEMINI_MODEL, get_llm, extract_content
 
@@ -197,8 +198,75 @@ class Validator:
         
         return ""
 
-    def validate(self, question: str, schema: str, sql: str, max_iterations=3) -> str:
-        """Validates and corrects SQL with iterative improvement (3 iterations) and timeout handling."""
+    def _check_data_existence(self, sql: str, schema: str) -> Tuple[bool, str]:
+        """
+        Check if empty result is expected based on data constraints.
+        
+        This addresses the "Validator Soft Warning" issue where valid queries
+        can return empty results (e.g., asking for 2030 sales when data only goes to 2024).
+        
+        Args:
+            sql: The SQL query that returned empty results
+            schema: Database schema
+            
+        Returns: Tuple of (is_empty_valid, explanation)
+        """
+        try:
+            # Extract table names and filter conditions from the SQL
+            # This is a simplified heuristic check
+            
+            # Look for date/year filters in WHERE clause
+            year_match = re.search(r"(?:year|date).*?[>=<]+\s*['\"]?(\d{4})", sql, re.IGNORECASE)
+            if year_match:
+                queried_year = int(year_match.group(1))
+                
+                # Try to find the table being queried
+                from_match = re.search(r"FROM\s+([a-zA-Z0-9_]+)", sql, re.IGNORECASE)
+                if from_match:
+                    table_name = from_match.group(1)
+                    
+                    # Look for date/year columns in that table
+                    date_columns = []
+                    for line in schema.split('\n'):
+                        if table_name.lower() in line.lower():
+                            # Simple heuristic: look for date/year columns
+                            date_match = re.findall(r'(year|date|time|created|updated)[\w_]*', line, re.IGNORECASE)
+                            date_columns.extend(date_match)
+                    
+                    if date_columns:
+                        # We found date columns - empty result might be valid
+                        # Can't check actual data without executing, but this is a soft signal
+                        explanation = f"Query filters by year {queried_year} on table {table_name}. Empty result may be valid if data doesn't extend to that period."
+                        return (True, explanation)
+            
+            # Look for very specific filters that might not match any data
+            # e.g., status = 'CANCELLED' when no orders are cancelled
+            specific_filters = re.findall(r"=\s*['\"]([^'\"]+)['\"]", sql, re.IGNORECASE)
+            if len(specific_filters) > 2:  # Multiple specific filters
+                explanation = "Query has multiple specific filter conditions. Empty result may be valid if no records match all criteria."
+                return (True, explanation)
+            
+            # Default: we can't determine if empty is valid
+            return (False, "Cannot determine if empty result is valid")
+            
+        except Exception as e:
+            print(f"[Validator] Error in data existence check: {e}")
+            return (False, f"Error checking data: {e}")
+
+    def validate(self, question: str, schema: str, sql: str, max_iterations=3, 
+                 execution_result: Optional[str] = None) -> str:
+        """
+        Validates and corrects SQL with iterative improvement and soft handling of empty results.
+        
+        Args:
+            question: User's question
+            schema: Database schema
+            sql: SQL query to validate
+            max_iterations: Maximum number of correction iterations
+            execution_result: Optional execution result (for empty result detection)
+        
+        Returns: Validated/corrected SQL query
+        """
         # Clean SQL first
         sql = sql.replace("```sql", "").replace("```", "").strip()
         
@@ -227,8 +295,20 @@ class Validator:
             if join_error:
                 error_messages.append(join_error)
 
-            # If no errors found, return the SQL
+            # If no errors found, check for empty result warning (if provided)
             if not error_messages:
+                # Check if execution result indicates empty result
+                if execution_result is not None and ('empty' in execution_result.lower() or 'no rows' in execution_result.lower()):
+                    is_valid_empty, explanation = self._check_data_existence(current_sql, schema)
+                    if is_valid_empty:
+                        print(f"[Validator] Empty result accepted as valid: {explanation}")
+                        return current_sql
+                    else:
+                        # Empty result might be due to query error, but don't force correction
+                        print(f"[Validator] Warning: Empty result detected, but validation cannot confirm if valid. Accepting query.")
+                        return current_sql
+                
+                # No errors and no empty result concerns
                 return current_sql
             
             # Prepare error message for LLM

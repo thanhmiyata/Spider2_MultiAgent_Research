@@ -32,7 +32,8 @@ class SchemaLinker:
     """
     
     def __init__(self, model_name=CLAUDE_MODEL, max_retries=2, use_rag=True, top_k=5, 
-                 metadata_path: Optional[str] = None, expansion_enabled=True):
+                 metadata_path: Optional[str] = None, expansion_enabled=True,
+                 enable_heuristic_fk=True):
         """
         Initialize SchemaLinker with optional metadata loading.
         
@@ -43,12 +44,14 @@ class SchemaLinker:
             top_k: Number of initial tables to retrieve
             metadata_path: Path to tables.json with foreign key information
             expansion_enabled: Enable graph expansion step
+            enable_heuristic_fk: Enable heuristic foreign key detection for implicit relationships
         """
         self.llm = get_llm(model_name=model_name, temperature=0, timeout=30)
         self.max_retries = max_retries
         self.use_rag = use_rag and SKLEARN_AVAILABLE
         self.top_k = top_k
         self.expansion_enabled = expansion_enabled
+        self.enable_heuristic_fk = enable_heuristic_fk
         
         # Schema metadata and adjacency list (loaded from tables.json if provided)
         self.schema_metadata: Optional[Dict] = None
@@ -72,12 +75,12 @@ class SchemaLinker:
         else:
             self.vectorizer = None
         
-        # LLM Reranking Prompt
+        # LLM Reranking Prompt with Column Pruning
         self.reranking_prompt = PromptTemplate(
             input_variables=["question", "candidate_tables"],
             template="""
             You are a database expert. Given a user question and a list of candidate tables with descriptions,
-            select ONLY the tables that are strictly necessary to answer the question.
+            select ONLY the tables and columns that are strictly necessary to answer the question.
             
             User Question: {question}
             
@@ -86,12 +89,14 @@ class SchemaLinker:
             
             Instructions:
             - Select ONLY tables that are directly needed to answer the question
-            - Consider JOIN paths - if tables need to be joined, include intermediate tables
-            - Return ONLY a JSON list of table names, nothing else
+            - For each selected table, list ONLY the columns that are relevant to the question
+            - Remove unnecessary columns (e.g., internal IDs, timestamps, metadata) that don't help answer the question
+            - Consider JOIN paths - if tables need to be joined, include foreign key columns
+            - Return a JSON object mapping table names to arrays of column names
             
-            Example output: ["orders", "customers", "order_items"]
+            Example output: {{"orders": ["order_id", "customer_id", "total"], "customers": ["customer_id", "name", "email"]}}
             
-            Output (JSON list only):
+            Output (JSON object only):
             """
         )
         self.reranking_chain = self.reranking_prompt | self.llm
@@ -181,43 +186,137 @@ class SchemaLinker:
             print(f"[SchemaLinker Step 1] TF-IDF retrieval failed: {e}, using all tables")
             return set(tables.keys())
 
-    def _step2_graph_expansion(self, initial_tables: Set[str]) -> Set[str]:
+    def _detect_implicit_fks(self, schema: str) -> Dict[str, List[str]]:
+        """
+        Heuristically detect implicit foreign key relationships based on column name matching.
+        
+        This addresses the "Implicit Foreign Keys" vulnerability where FK relationships
+        are not explicitly defined in metadata but exist logically (e.g., user_logs.uid -> users.id).
+        
+        Args:
+            schema: Full schema string
+            
+        Returns: Dictionary mapping table names to lists of related tables (soft links)
+        """
+        if not self.enable_heuristic_fk:
+            return {}
+        
+        # Parse schema to extract tables and their columns with types
+        tables_info = self._parse_schema_to_tables(schema)
+        
+        # Build map of column names to tables that have them
+        column_to_tables: Dict[str, List[tuple]] = {}  # column_name -> [(table_name, col_type), ...]
+        
+        for table_name, table_data in tables_info.items():
+            columns = table_data.get('columns', [])
+            for col in columns:
+                # Extract column name and type
+                col_name = col.split('(')[0].strip() if '(' in col else col.strip()
+                col_type = col.split('(')[1].split(')')[0].strip() if '(' in col else 'UNKNOWN'
+                
+                if col_name not in column_to_tables:
+                    column_to_tables[col_name] = []
+                column_to_tables[col_name].append((table_name, col_type))
+        
+        # Detect potential FK relationships
+        soft_links: Dict[str, Set[str]] = {}
+        for table in tables_info.keys():
+            soft_links[table] = set()
+        
+        # Common FK patterns to check
+        fk_patterns = [
+            ('id', 'INTEGER'),  # id is often a primary key
+            ('_id', ''),  # columns ending in _id are often FKs
+            ('_ID', ''),
+        ]
+        
+        for col_name, table_type_pairs in column_to_tables.items():
+            # Only consider if column appears in 2+ tables
+            if len(table_type_pairs) < 2:
+                continue
+            
+            # Check if this looks like a foreign key relationship
+            is_potential_fk = (
+                col_name.endswith('_id') or 
+                col_name.endswith('_ID') or
+                col_name.endswith('Id') or
+                col_name == 'id' or
+                col_name in ['customer_id', 'user_id', 'product_id', 'order_id', 'uid']
+            )
+            
+            if is_potential_fk:
+                # Create bidirectional soft links between tables sharing this column
+                for i, (table1, type1) in enumerate(table_type_pairs):
+                    for table2, type2 in table_type_pairs[i+1:]:
+                        # Only link if types match (if known)
+                        if type1 != 'UNKNOWN' and type2 != 'UNKNOWN' and type1 != type2:
+                            continue
+                        
+                        soft_links[table1].add(table2)
+                        soft_links[table2].add(table1)
+                        print(f"[SchemaLinker] Detected implicit FK: {table1}.{col_name} <-> {table2}.{col_name}")
+        
+        # Convert sets to lists for consistency
+        return {table: list(links) for table, links in soft_links.items()}
+
+    def _step2_graph_expansion(self, initial_tables: Set[str], schema: str = None) -> Set[str]:
         """
         Step 2: Graph Expansion - Add neighboring tables via foreign key relationships.
+        Now includes heuristic detection of implicit FKs.
         
         Args:
             initial_tables: Set of initially selected tables
+            schema: Optional schema string for implicit FK detection
             
         Returns: Expanded set of candidate tables (initial + neighbors)
         """
-        if not self.expansion_enabled or not self.adjacency_list:
-            print(f"[SchemaLinker Step 2] Graph expansion disabled or no adjacency list available")
+        if not self.expansion_enabled:
+            print(f"[SchemaLinker Step 2] Graph expansion disabled")
             return initial_tables
         
         candidate_set = set(initial_tables)
         
-        # Add all direct neighbors
+        # Build enhanced adjacency list with explicit + implicit FKs
+        enhanced_adjacency = {}
+        
+        # Start with explicit FKs from metadata
+        if self.adjacency_list:
+            enhanced_adjacency = {k: list(v) for k, v in self.adjacency_list.items()}
+        
+        # Add implicit FKs through heuristic detection
+        if self.enable_heuristic_fk and schema:
+            implicit_fks = self._detect_implicit_fks(schema)
+            for table, neighbors in implicit_fks.items():
+                if table not in enhanced_adjacency:
+                    enhanced_adjacency[table] = []
+                for neighbor in neighbors:
+                    if neighbor not in enhanced_adjacency[table]:
+                        enhanced_adjacency[table].append(neighbor)
+        
+        # Add all direct neighbors (explicit + implicit)
         for table in initial_tables:
-            neighbors = self.adjacency_list.get(table, [])
+            neighbors = enhanced_adjacency.get(table, [])
             candidate_set.update(neighbors)
         
         print(f"[SchemaLinker Step 2] Graph expansion: {len(initial_tables)} -> {len(candidate_set)} tables")
         print(f"[SchemaLinker Step 2] Candidate set: {candidate_set}")
         return candidate_set
 
-    def _step3_llm_reranking(self, question: str, candidate_tables: Set[str], schema: str) -> Set[str]:
+    def _step3_llm_reranking(self, question: str, candidate_tables: Set[str], schema: str) -> Dict[str, List[str]]:
         """
-        Step 3: LLM Reranking - Refine selection to only strictly necessary tables.
+        Step 3: LLM Reranking - Refine selection to only strictly necessary tables and columns.
+        Now returns a dictionary mapping table names to lists of relevant columns (Column Pruning).
         
         Args:
             question: User's question
             candidate_tables: Set of candidate table names from expansion
             schema: Full schema string
             
-        Returns: Refined set of selected table names
+        Returns: Dictionary mapping selected table names to lists of relevant column names
+                 Example: {'orders': ['order_id', 'customer_id', 'total'], 'customers': ['customer_id', 'name']}
         """
         if not candidate_tables:
-            return candidate_tables
+            return {}
         
         # Parse schema to get table descriptions
         all_tables = self._parse_schema_to_tables(schema)
@@ -246,7 +345,7 @@ class SchemaLinker:
         
         candidate_desc = '\n'.join(candidate_desc_lines)
         
-        # Call LLM for reranking
+        # Call LLM for reranking with column pruning
         for attempt in range(self.max_retries):
             try:
                 response = self.reranking_chain.invoke({
@@ -255,43 +354,73 @@ class SchemaLinker:
                 })
                 result_text = extract_content(response).strip()
                 
-                # Parse JSON response - try to extract JSON array
+                # Parse JSON response - try to extract JSON object
                 # Handle markdown code blocks
                 if '```' in result_text:
-                    match = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', result_text, re.DOTALL)
+                    match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', result_text, re.DOTALL)
                     if match:
                         result_text = match.group(1)
                 
                 # Try to parse JSON
                 try:
-                    selected_tables = json.loads(result_text)
+                    selected_data = json.loads(result_text)
                 except json.JSONDecodeError:
-                    # If direct parse fails, try to extract just the array
-                    match = re.search(r'\[([^\[\]]+)\]', result_text)
+                    # If direct parse fails, try to extract just the object
+                    match = re.search(r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}', result_text, re.DOTALL)
                     if match:
-                        result_text = '[' + match.group(1) + ']'
-                        selected_tables = json.loads(result_text)
+                        result_text = match.group(0)
+                        selected_data = json.loads(result_text)
                     else:
                         raise
                 
-                if isinstance(selected_tables, list):
-                    selected_set = {t for t in selected_tables if t in candidate_tables}
-                    print(f"[SchemaLinker Step 3] LLM reranking: {len(candidate_tables)} -> {len(selected_set)} tables")
-                    print(f"[SchemaLinker Step 3] Selected: {selected_set}")
-                    return selected_set if selected_set else candidate_tables
+                # Validate and filter the result
+                if isinstance(selected_data, dict):
+                    # Filter to only include tables that were in candidate_tables
+                    filtered_result = {}
+                    for table, columns in selected_data.items():
+                        if table in candidate_tables:
+                            if isinstance(columns, list):
+                                filtered_result[table] = columns
+                            else:
+                                # Fallback: if not a list, include all columns
+                                if table in all_tables:
+                                    filtered_result[table] = all_tables[table].get('columns', [])
+                    
+                    if filtered_result:
+                        print(f"[SchemaLinker Step 3] LLM reranking: {len(candidate_tables)} -> {len(filtered_result)} tables")
+                        print(f"[SchemaLinker Step 3] Selected with columns: {filtered_result}")
+                        return filtered_result
+                    else:
+                        # Fallback: return all candidates with all columns
+                        print(f"[SchemaLinker Step 3] No valid tables in result, using all candidates")
+                        return {t: all_tables.get(t, {}).get('columns', []) for t in candidate_tables if t in all_tables}
+                
+                # Handle legacy format (list of table names) - for backwards compatibility
+                elif isinstance(selected_data, list):
+                    print(f"[SchemaLinker Step 3] Legacy format detected, converting to new format")
+                    result_dict = {}
+                    for table in selected_data:
+                        if table in candidate_tables and table in all_tables:
+                            result_dict[table] = all_tables[table].get('columns', [])
+                    return result_dict if result_dict else {t: all_tables.get(t, {}).get('columns', []) for t in candidate_tables if t in all_tables}
                 
             except Exception as e:
                 print(f"[SchemaLinker Step 3] LLM reranking failed (attempt {attempt+1}/{self.max_retries}): {e}")
                 if attempt < self.max_retries - 1:
                     time.sleep(0.5)
         
-        # Fallback: return all candidate tables
-        print(f"[SchemaLinker Step 3] LLM reranking failed, using all candidates")
-        return candidate_tables
+        # Fallback: return all candidate tables with all columns
+        print(f"[SchemaLinker Step 3] LLM reranking failed, using all candidates with all columns")
+        return {t: all_tables.get(t, {}).get('columns', []) for t in candidate_tables if t in all_tables}
 
-    def _format_output(self, question: str, selected_tables: Set[str], schema: str) -> str:
+    def _format_output(self, question: str, selected_data: Dict[str, List[str]], schema: str) -> str:
         """
-        Format the output in rich format including relationships.
+        Format the output in rich format including relationships and pruned columns.
+        
+        Args:
+            question: User's question
+            selected_data: Dictionary mapping table names to lists of relevant columns
+            schema: Full schema string
         
         Output format:
         User Question: ...
@@ -306,8 +435,8 @@ class SchemaLinker:
         
         output_lines = [f"User Question: {question}", "", "Selected Tables:"]
         
-        # Format each selected table
-        for idx, table_name in enumerate(sorted(selected_tables), 1):
+        # Format each selected table with pruned columns
+        for idx, (table_name, selected_columns) in enumerate(sorted(selected_data.items()), 1):
             if table_name not in all_tables:
                 continue
             
@@ -323,16 +452,20 @@ class SchemaLinker:
             else:
                 output_lines.append(f"{idx}. {table_name}")
             
-            # Columns with descriptions
-            if self.schema_metadata and table_name in self.schema_metadata:
-                table_meta = self.schema_metadata[table_name]
-                col_descs = table_meta.get('column_descriptions', {})
-                
-                for col_name in table_meta.get('columns', []):
-                    col_desc = col_descs.get(col_name, '')
-                    output_lines.append(f"   - {col_name}: {col_desc}")
+            # Only show selected columns (Column Pruning)
+            if selected_columns:
+                if self.schema_metadata and table_name in self.schema_metadata:
+                    table_meta = self.schema_metadata[table_name]
+                    col_descs = table_meta.get('column_descriptions', {})
+                    
+                    for col_name in selected_columns:
+                        col_desc = col_descs.get(col_name, '')
+                        output_lines.append(f"   - {col_name}: {col_desc}")
+                else:
+                    # Fallback: just list column names
+                    output_lines.append(f"   Columns: {', '.join(selected_columns)}")
             else:
-                # Fallback to parsed columns
+                # Fallback to all columns if none selected
                 if 'columns_text' in table_data:
                     output_lines.append(f"   Columns: {table_data['columns_text']}")
                 elif table_data.get('columns'):
@@ -345,7 +478,7 @@ class SchemaLinker:
             output_lines.append("[Relationships]")
             relationships = []
             
-            for table_name in selected_tables:
+            for table_name in selected_data.keys():
                 if table_name in self.schema_metadata:
                     table_meta = self.schema_metadata[table_name]
                     foreign_keys = table_meta.get('foreign_keys', [])
@@ -357,7 +490,7 @@ class SchemaLinker:
                         if '.' in to_ref:
                             ref_table = to_ref.split('.')[0]
                             # Only include if both tables are selected
-                            if ref_table in selected_tables:
+                            if ref_table in selected_data:
                                 relationships.append(f"- {table_name}.{from_col} = {to_ref}")
             
             if relationships:
@@ -367,15 +500,16 @@ class SchemaLinker:
         
         return '\n'.join(output_lines)
 
-    def link(self, question: str, schema: str) -> str:
+    def link(self, question: str, schema: str, return_format: str = "dict") -> str:
         """
-        Main linking method implementing the 3-step process.
+        Main linking method implementing the 3-step process with implicit FK detection and column pruning.
         
         Args:
             question: User's natural language question
             schema: Database schema string
+            return_format: "dict" (new format with pruned columns) or "legacy" (backward compatible)
             
-        Returns: Linked schema in rich format
+        Returns: Linked schema in rich format with pruned columns
         """
         print(f"\n[SchemaLinker] Starting 3-step schema linking process...")
         
@@ -383,22 +517,41 @@ class SchemaLinker:
             # Step 1: Initial Retrieval
             initial_tables = self._step1_initial_retrieval(question, schema)
             
-            # Step 2: Graph Expansion
-            candidate_tables = self._step2_graph_expansion(initial_tables)
+            # Step 2: Graph Expansion (with implicit FK detection)
+            candidate_tables = self._step2_graph_expansion(initial_tables, schema)
             
-            # Step 3: LLM Reranking
-            selected_tables = self._step3_llm_reranking(question, candidate_tables, schema)
+            # Step 3: LLM Reranking (with column pruning)
+            selected_data = self._step3_llm_reranking(question, candidate_tables, schema)
             
-            # Format output
-            if selected_tables:
-                linked_schema = self._format_output(question, selected_tables, schema)
+            # Format output with pruned columns
+            if selected_data:
+                linked_schema = self._format_output(question, selected_data, schema)
             else:
                 # Fallback to original schema
                 linked_schema = schema
             
-            print(f"[SchemaLinker] Linking complete. Selected {len(selected_tables)} tables.\n")
+            print(f"[SchemaLinker] Linking complete. Selected {len(selected_data)} tables.\n")
             return linked_schema
             
         except Exception as e:
             print(f"[SchemaLinker] Error in schema linking: {e}")
             return schema  # Fallback to full schema
+    
+    def get_selected_tables_and_columns(self, question: str, schema: str) -> Dict[str, List[str]]:
+        """
+        Get selected tables and columns as a dictionary (new API).
+        
+        Args:
+            question: User's natural language question
+            schema: Database schema string
+            
+        Returns: Dictionary mapping table names to lists of relevant columns
+        """
+        try:
+            initial_tables = self._step1_initial_retrieval(question, schema)
+            candidate_tables = self._step2_graph_expansion(initial_tables, schema)
+            selected_data = self._step3_llm_reranking(question, candidate_tables, schema)
+            return selected_data
+        except Exception as e:
+            print(f"[SchemaLinker] Error getting tables and columns: {e}")
+            return {}
