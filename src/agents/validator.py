@@ -1,7 +1,7 @@
 import re
 import sqlite3
 import time
-from typing import Optional
+from typing import Optional, Tuple
 from langchain_core.prompts import PromptTemplate
 from config import DEFAULT_MODEL, GEMINI_MODEL, get_llm, extract_content
 
@@ -198,7 +198,7 @@ class Validator:
         
         return ""
 
-    def _check_data_existence(self, sql: str, schema: str) -> tuple[bool, str]:
+    def _check_data_existence(self, sql: str, schema: str) -> Tuple[bool, str]:
         """
         Check if empty result is expected based on data constraints.
         

@@ -500,13 +500,14 @@ class SchemaLinker:
         
         return '\n'.join(output_lines)
 
-    def link(self, question: str, schema: str) -> str:
+    def link(self, question: str, schema: str, return_format: str = "dict") -> str:
         """
         Main linking method implementing the 3-step process with implicit FK detection and column pruning.
         
         Args:
             question: User's natural language question
             schema: Database schema string
+            return_format: "dict" (new format with pruned columns) or "legacy" (backward compatible)
             
         Returns: Linked schema in rich format with pruned columns
         """
@@ -535,3 +536,22 @@ class SchemaLinker:
         except Exception as e:
             print(f"[SchemaLinker] Error in schema linking: {e}")
             return schema  # Fallback to full schema
+    
+    def get_selected_tables_and_columns(self, question: str, schema: str) -> Dict[str, List[str]]:
+        """
+        Get selected tables and columns as a dictionary (new API).
+        
+        Args:
+            question: User's natural language question
+            schema: Database schema string
+            
+        Returns: Dictionary mapping table names to lists of relevant columns
+        """
+        try:
+            initial_tables = self._step1_initial_retrieval(question, schema)
+            candidate_tables = self._step2_graph_expansion(initial_tables, schema)
+            selected_data = self._step3_llm_reranking(question, candidate_tables, schema)
+            return selected_data
+        except Exception as e:
+            print(f"[SchemaLinker] Error getting tables and columns: {e}")
+            return {}
