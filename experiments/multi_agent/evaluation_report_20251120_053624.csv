@@ -1,3 +1,0 @@
-instance_id,db_id,is_correct,complexity,agent_used,error_type,error,latency
-local003,E_commerce,False,,,execution_error,Error: no such table: orders,
-local004,E_commerce,False,,,execution_error,Error: no such table: orders,

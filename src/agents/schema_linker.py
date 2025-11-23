@@ -56,7 +56,10 @@ class SchemaLinker:
             
             4. **Data Types**: Include data types for all columns in format: `column_name (TYPE)`
             
-            5. **Table Relationships**: If you select multiple tables, ensure they can be joined via foreign keys.
+            5. **Table Relationships**: 
+               - If you select multiple tables, ensure they can be joined via foreign keys.
+               - **CRITICAL**: Check for intermediate tables! Do NOT assume direct joins exist.
+               - Example: To join `orders` and `products`, check if you need `order_items` in between.
             
             Schema:
             {schema}

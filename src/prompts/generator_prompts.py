@@ -130,6 +130,11 @@ MANDATORY RULES (Follow STRICTLY):
 3. **SQLite Syntax**:
    - Use ONLY SQLite-compatible functions
    - No proprietary extensions (MySQL, PostgreSQL, etc.)
+   - **CRITICAL**: Do NOT use a column alias in the same SELECT clause where it is defined.
+   - **CRITICAL**: SQLite does NOT support `COVAR_POP`, `VAR_POP`, `STDDEV`, `CORR`, etc.
+     - You MUST calculate these manually using `SUM`, `AVG`, `COUNT`.
+     - Formula for Slope (m): `(N*SUM(xy) - SUM(x)*SUM(y)) / (N*SUM(x^2) - SUM(x)^2)`
+     - Formula for Intercept (b): `(SUM(y) - m*SUM(x)) / N`
 
 4. **Date/Time Functions (SQLite-specific)**:
    - `STRFTIME('%Y-%m-%d', date_col)` for date formatting

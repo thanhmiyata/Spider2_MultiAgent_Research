@@ -2,13 +2,17 @@ import json
 import os
 import sqlite3
 import pandas as pd
+import csv
 from tqdm import tqdm
 from pathlib import Path
 from datetime import datetime
 
 # Configuration
-GOLD_DIR = "data/spider2_lite/evaluation_suite/gold/sql"
-DB_DIR = "data/spider2_lite/resource/databases/sqlite"
+PROJECT_ROOT = Path(__file__).parent.parent
+GOLD_DIR = PROJECT_ROOT / "data/spider2_lite/evaluation_suite/gold/sql"
+GOLD_RESULT_DIR = PROJECT_ROOT / "data/spider2_lite/evaluation_suite/gold/exec_result"
+METADATA_PATH = PROJECT_ROOT / "data/spider2_lite/evaluation_suite/gold/spider2lite_eval.jsonl"
+DB_DIR = PROJECT_ROOT / "data/spider2_lite/resource/databases/sqlite"
 
 def execute_sql(db_path, sql):
     """Executes SQL and returns result as a set of tuples for comparison."""
@@ -21,6 +25,103 @@ def execute_sql(db_path, sql):
         return set(results)
     except Exception as e:
         return f"Error: {e}"
+
+def load_metadata():
+    """Loads metadata from spider2lite_eval.jsonl."""
+    metadata = {}
+    if os.path.exists(METADATA_PATH):
+        with open(METADATA_PATH, 'r') as f:
+            for line in f:
+                item = json.loads(line)
+                metadata[item['instance_id']] = item
+    return metadata
+
+def normalize_val(val):
+    """Normalize value for comparison."""
+    if val is None:
+        return "none"
+    try:
+        # Try converting to float for numeric comparison
+        f_val = float(val)
+        if f_val.is_integer():
+            return str(int(f_val))
+        return f"{f_val:.4f}" # Round to 4 decimals
+    except (ValueError, TypeError):
+        return str(val).strip().lower()
+
+def normalize_set(s):
+    """Normalize a set of tuples."""
+    norm = set()
+    for row in s:
+        if not isinstance(row, (list, tuple)):
+            row = (row,)
+        norm_row = tuple(normalize_val(x) for x in row)
+        norm.add(norm_row)
+    return norm
+
+def compare_with_csv(pred_result, instance_id, metadata_item):
+    """
+    Compares predicted result with gold CSVs.
+    Returns True if any match is found.
+    """
+    condition_cols = metadata_item.get('condition_cols', [])
+    
+    # If pred_result is an error, it's wrong
+    if isinstance(pred_result, str) and pred_result.startswith("Error"):
+        return False
+        
+    suffixes = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j']
+    
+    # If no condition cols, maybe just check 'a' or no suffix?
+    # But usually condition_cols is present if there are CSVs.
+    # If condition_cols is empty but CSV exists, we assume all cols.
+    
+    # Check for plain CSV first
+    plain_csv = GOLD_RESULT_DIR / f"{instance_id}.csv"
+    if plain_csv.exists():
+        csv_paths = [plain_csv]
+        target_cols_list = [[]] # All cols
+    else:
+        csv_paths = []
+        target_cols_list = []
+        for idx, suffix in enumerate(suffixes):
+            csv_path = GOLD_RESULT_DIR / f"{instance_id}_{suffix}.csv"
+            if csv_path.exists():
+                csv_paths.append(csv_path)
+                if idx < len(condition_cols):
+                    target_cols_list.append(condition_cols[idx])
+                else:
+                    target_cols_list.append([]) # Default to all?
+    
+    if not csv_paths:
+        return False
+        
+    for i, csv_path in enumerate(csv_paths):
+        target_cols = target_cols_list[i] if i < len(target_cols_list) else []
+        
+        try:
+            # Read CSV
+            gold_df = pd.read_csv(csv_path)
+            
+            if not target_cols:
+                # Compare all columns
+                gold_set = set(tuple(x) for x in gold_df.to_records(index=False))
+            else:
+                # Select specific columns by index
+                gold_subset = gold_df.iloc[:, target_cols]
+                gold_set = set(tuple(x) for x in gold_subset.to_records(index=False))
+            
+            norm_pred = normalize_set(pred_result)
+            norm_gold = normalize_set(gold_set)
+            
+            if norm_pred == norm_gold:
+                return True
+                
+        except Exception as e:
+            print(f"Error comparing with CSV {csv_path}: {e}")
+            continue
+            
+    return False
 
 def evaluate_results(results_file, output_dir=None):
     """
@@ -38,6 +139,9 @@ def evaluate_results(results_file, output_dir=None):
 
     with open(results_file, 'r') as f:
         results = [json.loads(line) for line in f]
+
+    # Load Metadata
+    metadata = load_metadata()
 
     # Deduplicate results, keeping the latest one for each instance_id
     latest_results = {}
@@ -82,32 +186,24 @@ def evaluate_results(results_file, output_dir=None):
             total_count += 1
             continue
 
-        # Load Gold SQL
-        gold_path = os.path.join(GOLD_DIR, f"{instance_id}.sql")
-        if not os.path.exists(gold_path):
-            continue
-            
-        with open(gold_path, 'r') as f:
-            gold_sql = f.read().strip()
-
         # Locate DB
-        db_folder = os.path.join(DB_DIR, db_id)
-        if not os.path.exists(db_folder):
+        db_folder = DB_DIR / db_id
+        if not db_folder.exists():
+            print(f"DB folder not found: {db_folder}")
             continue
              
         sqlite_files = [f for f in os.listdir(db_folder) if f.endswith('.sqlite')]
         if not sqlite_files:
+            print(f"No sqlite file in {db_folder}")
             continue
-        db_path = os.path.join(db_folder, sqlite_files[0])
+        db_path = db_folder / sqlite_files[0]
 
-        # Execute
+        # Execute Predicted SQL
         pred_result = execute_sql(db_path, generated_sql)
-        gold_result = execute_sql(db_path, gold_sql)
-
-        # Analyze errors
+        
+        # Analyze errors (pre-comparison)
         error_type = None
         error_msg = None
-        
         if isinstance(pred_result, str) and pred_result.startswith("Error"):
             if "syntax" in pred_result.lower() or "near" in pred_result.lower():
                 syntax_error_count += 1
@@ -117,14 +213,33 @@ def evaluate_results(results_file, output_dir=None):
                 error_type = "execution_error"
             error_msg = pred_result
 
-        # Compare results
-        # CRITICAL FIX: If pred_result is an error, it is ALWAYS incorrect, 
-        # even if gold_result is also an error (which would mean a bad test case).
-        if isinstance(pred_result, str) and pred_result.startswith("Error"):
-            is_correct = False
-        else:
-            is_correct = (pred_result == gold_result)
+        # Determine Correctness
+        is_correct = False
+        
+        # 1. Try Gold SQL File
+        gold_path = GOLD_DIR / f"{instance_id}.sql"
+        if gold_path.exists():
+            with open(gold_path, 'r') as f:
+                gold_sql = f.read().strip()
+            gold_result = execute_sql(db_path, gold_sql)
             
+            if isinstance(pred_result, str) and pred_result.startswith("Error"):
+                is_correct = False
+            else:
+                # Normalize both for comparison
+                is_correct = (normalize_set(pred_result) == normalize_set(gold_result))
+        
+        # 2. Try CSV Comparison
+        elif instance_id in metadata:
+            is_correct = compare_with_csv(pred_result, instance_id, metadata[instance_id])
+        
+        else:
+            # No gold standard found
+            print(f"Warning: No gold standard found for {instance_id}")
+            # Skip counting this item? Or count as failed?
+            # Usually skip if we can't evaluate.
+            continue
+
         if is_correct:
             correct_count += 1
         

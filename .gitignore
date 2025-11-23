@@ -21,3 +21,8 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+
+# Experiment files
+/experiments    
+#data sqllite
+*.sqlite
