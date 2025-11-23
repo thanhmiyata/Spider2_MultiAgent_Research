@@ -5,6 +5,17 @@ from langchain_core.prompts import PromptTemplate
 
 from config import DEFAULT_MODEL, GEMINI_MODEL, get_llm, extract_content
 
+# SQL keywords to filter out when extracting table names
+SQL_KEYWORDS = {
+    'table', 'tables', 'from', 'join', 'where', 'select', 
+    'group', 'order', 'having', 'inner', 'left', 'right', 
+    'outer', 'cross', 'natural'
+}
+
+# Preview constants for output formatting
+MAX_PREVIEW_LENGTH = 100
+MAX_PREVIEW_COLUMNS = 5
+
 
 class MissingTableError(Exception):
     """Exception raised when required tables are missing from the schema."""
@@ -138,10 +149,8 @@ class Planner:
             matches = re.finditer(pattern, plan_lower, re.IGNORECASE)
             for match in matches:
                 table_name = match.group(1)
-                # Filter out SQL keywords
-                if table_name not in ['table', 'tables', 'from', 'join', 'where', 'select', 
-                                      'group', 'order', 'having', 'inner', 'left', 'right', 
-                                      'outer', 'cross', 'natural']:
+                # Filter out SQL keywords using module constant
+                if table_name not in SQL_KEYWORDS:
                     required_tables.add(table_name)
         
         return required_tables
@@ -204,9 +213,9 @@ class Planner:
                 # Schema validity check
                 try:
                     self._validate_schema(plan, schema)
-                except MissingTableError as e:
-                    # Re-raise to let caller handle
-                    raise e
+                except MissingTableError:
+                    # Re-raise to let caller handle - preserves traceback
+                    raise
                 
                 return plan
                 

@@ -18,6 +18,10 @@ except ImportError:
 from config import DEFAULT_MODEL, CLAUDE_MODEL, get_llm, extract_content
 from utils.db_utils import load_schema_metadata, build_adjacency_list
 
+# Output format constants
+MAX_PREVIEW_LENGTH = 100  # Maximum length for column preview in descriptions
+MAX_PREVIEW_COLUMNS = 5   # Maximum number of columns to show in preview
+
 
 class SchemaLinker:
     """
@@ -233,9 +237,9 @@ class SchemaLinker:
                 
                 # Add columns preview
                 if 'columns_text' in table_data:
-                    desc += f" (columns: {table_data['columns_text'][:100]}...)"
+                    desc += f" (columns: {table_data['columns_text'][:MAX_PREVIEW_LENGTH]}...)"
                 elif table_data.get('columns'):
-                    cols_preview = ', '.join(table_data['columns'][:5])
+                    cols_preview = ', '.join(table_data['columns'][:MAX_PREVIEW_COLUMNS])
                     desc += f" (columns: {cols_preview}...)"
                 
                 candidate_desc_lines.append(desc)
@@ -251,14 +255,24 @@ class SchemaLinker:
                 })
                 result_text = extract_content(response).strip()
                 
-                # Parse JSON response
+                # Parse JSON response - try to extract JSON array
                 # Handle markdown code blocks
                 if '```' in result_text:
-                    result_text = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', result_text, re.DOTALL)
-                    if result_text:
-                        result_text = result_text.group(1)
+                    match = re.search(r'```(?:json)?\s*(\[.*?\])\s*```', result_text, re.DOTALL)
+                    if match:
+                        result_text = match.group(1)
                 
-                selected_tables = json.loads(result_text)
+                # Try to parse JSON
+                try:
+                    selected_tables = json.loads(result_text)
+                except json.JSONDecodeError:
+                    # If direct parse fails, try to extract just the array
+                    match = re.search(r'\[([^\[\]]+)\]', result_text)
+                    if match:
+                        result_text = '[' + match.group(1) + ']'
+                        selected_tables = json.loads(result_text)
+                    else:
+                        raise
                 
                 if isinstance(selected_tables, list):
                     selected_set = {t for t in selected_tables if t in candidate_tables}

@@ -22,11 +22,9 @@ try:
 except ImportError as e:
     print(f"Warning: Could not import Planner: {e}")
     PLANNER_AVAILABLE = False
-    # Define dummy classes for tests to be skipped
-    class MissingTableError(Exception):
-        pass
-    class Planner:
-        pass
+    # Define dummy classes for skipped tests
+    MissingTableError = type('MissingTableError', (Exception,), {})
+    Planner = type('Planner', (), {})
 
 
 class TestForeignKeyParsing(unittest.TestCase):
