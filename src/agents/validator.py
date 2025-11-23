@@ -6,6 +6,7 @@ from config import DEFAULT_MODEL, GEMINI_MODEL, get_llm, extract_content
 
 class Validator:
     def __init__(self, model_name=GEMINI_MODEL, max_retries=2):
+        self.model_name = model_name
         self.llm = get_llm(model_name=model_name, temperature=0, timeout=30)
         self.max_retries = max_retries
         self.prompt = PromptTemplate(

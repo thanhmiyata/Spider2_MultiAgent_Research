@@ -16,7 +16,7 @@ except ImportError:
     print("Install with: pip install scikit-learn")
 
 from config import DEFAULT_MODEL, CLAUDE_MODEL, get_llm, extract_content
-from utils.db_utils import load_schema_metadata, build_adjacency_list
+from utils.db_utils import load_schema_metadata, build_adjacency_list, get_foreign_keys_from_db
 
 # Output format constants
 MAX_PREVIEW_LENGTH = 100  # Maximum length for column preview in descriptions
@@ -31,7 +31,7 @@ class SchemaLinker:
     3. LLM Reranking: Refine selection to only strictly necessary tables
     """
     
-    def __init__(self, model_name=CLAUDE_MODEL, max_retries=2, use_rag=True, top_k=5, 
+    def __init__(self, model_name=CLAUDE_MODEL, max_retries=2, use_rag=True, top_k=10, 
                  metadata_path: Optional[str] = None, expansion_enabled=True):
         """
         Initialize SchemaLinker with optional metadata loading.
@@ -44,6 +44,7 @@ class SchemaLinker:
             metadata_path: Path to tables.json with foreign key information
             expansion_enabled: Enable graph expansion step
         """
+        self.model_name = model_name
         self.llm = get_llm(model_name=model_name, temperature=0, timeout=30)
         self.max_retries = max_retries
         self.use_rag = use_rag and SKLEARN_AVAILABLE
@@ -76,21 +77,24 @@ class SchemaLinker:
         self.reranking_prompt = PromptTemplate(
             input_variables=["question", "candidate_tables"],
             template="""
-            You are a database expert. Given a user question and a list of candidate tables with descriptions,
-            select ONLY the tables that are strictly necessary to answer the question.
-            
+            You are a database expert. Given a user question and a list of candidate tables with descriptions, 
+            select the tables that are necessary to answer the question.
+
             User Question: {question}
-            
+
             Candidate Tables:
             {candidate_tables}
-            
+
             Instructions:
-            - Select ONLY tables that are directly needed to answer the question
-            - Consider JOIN paths - if tables need to be joined, include intermediate tables
-            - Return ONLY a JSON list of table names, nothing else
-            
-            Example output: ["orders", "customers", "order_items"]
-            
+            1. **Identify Targets**: Select tables containing the data requested (e.g., sales, counts).
+            2. **Resolve IDs to Names**: If the question asks for names (e.g., "Product Name", "Interest Category") but the main table only has IDs (e.g., `product_id`, `interest_id`), you MUST include the lookup table that maps these IDs to names.
+            3. **Follow Foreign Keys**: Include tables that are needed to join the target tables together.
+            4. **Be Inclusive**: If you are unsure whether a table is needed, INCLUDE it. It is better to have 1 extra table than to miss a critical one.
+
+            Return ONLY a JSON list of table names.
+
+            Example output: ["orders", "customers", "order_items", "products"]
+
             Output (JSON list only):
             """
         )
@@ -367,21 +371,28 @@ class SchemaLinker:
         
         return '\n'.join(output_lines)
 
-    def link(self, question: str, schema: str) -> str:
+    def link(self, question: str, schema: str, db_path: Optional[str] = None) -> str:
         """
         Main linking method implementing the 3-step process.
         
         Args:
             question: User's natural language question
             schema: Database schema string
+            db_path: Optional path to SQLite database for dynamic graph expansion
             
-        Returns: Linked schema in rich format
+        Returns:
+            str: Linked schema in rich format
         """
         print(f"\n[SchemaLinker] Starting 3-step schema linking process...")
         
         try:
             # Step 1: Initial Retrieval
             initial_tables = self._step1_initial_retrieval(question, schema)
+            
+            # Dynamic Graph Expansion Setup
+            if not self.adjacency_list and db_path and self.expansion_enabled:
+                print(f"[SchemaLinker] Building dynamic adjacency list from DB: {db_path}")
+                self.adjacency_list = get_foreign_keys_from_db(db_path)
             
             # Step 2: Graph Expansion
             candidate_tables = self._step2_graph_expansion(initial_tables)

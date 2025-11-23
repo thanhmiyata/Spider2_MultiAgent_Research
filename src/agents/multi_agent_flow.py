@@ -11,7 +11,7 @@ class MultiAgentSystem:
         self.generator = Generator()
         self.validator = Validator()
 
-    def run(self, question: str, schema: str, verbose=False) -> str:
+    def run(self, question: str, schema: str, db_path: str = None, verbose=False) -> str:
         """
         Orchestrates the multi-step process with timing breakdown:
         1. Schema Linking: Reduce schema to relevant parts.
@@ -31,9 +31,9 @@ class MultiAgentSystem:
         try:
             # Step 1: Schema Linking
             if verbose:
-                print("  [MAS] Step 1: Schema Linking...")
+                print(f"  [MAS] Step 1: Schema Linking (Model: {self.linker.model_name})...")
             start = time.time()
-            linked_schema = self.linker.link(question, schema)
+            linked_schema = self.linker.link(question, schema, db_path=db_path)
             if not linked_schema or len(linked_schema.strip()) < 10:
                 linked_schema = schema  # Fallback to full schema
             timings['schema_linking'] = round(time.time() - start, 2)
@@ -42,7 +42,7 @@ class MultiAgentSystem:
 
             # Step 2: Planning
             if verbose:
-                print("  [MAS] Step 2: Planning...")
+                print(f"  [MAS] Step 2: Planning (Model: {self.planner.model_name})...")
             start = time.time()
             plan = self.planner.plan(question, linked_schema)
             if not plan or len(plan.strip()) < 10:
@@ -53,7 +53,7 @@ class MultiAgentSystem:
 
             # Step 3: Generation
             if verbose:
-                print("  [MAS] Step 3: SQL Generation...")
+                print(f"  [MAS] Step 3: SQL Generation (Model: {self.generator.model_name})...")
             start = time.time()
             sql = self.generator.generate(question, linked_schema, plan)
             if not sql:
@@ -66,7 +66,7 @@ class MultiAgentSystem:
 
             # Step 4: Validation
             if verbose:
-                print("  [MAS] Step 4: Validation & Correction...")
+                print(f"  [MAS] Step 4: Validation & Correction (Model: {self.validator.model_name})...")
             start = time.time()
             final_sql = self.validator.validate(question, linked_schema, sql)
             timings['validation'] = round(time.time() - start, 2)

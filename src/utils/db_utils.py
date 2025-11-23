@@ -449,3 +449,56 @@ def build_adjacency_list(schema_metadata: Dict[str, Dict]) -> Dict[str, List[str
     logger.info(f"Built adjacency list for {len(adjacency_list)} tables")
     return adjacency_list
 
+
+def get_foreign_keys_from_db(db_path: str) -> Dict[str, List[str]]:
+    """
+    Extract foreign key relationships directly from SQLite database.
+    
+    Args:
+        db_path: Path to the SQLite database file
+        
+    Returns:
+        Dict[str, List[str]]: Adjacency list mapping tables to related tables
+    """
+    adjacency_list = {}
+    conn = None
+    try:
+        logger.info(f"Extracting foreign keys from database: {db_path}")
+        conn = get_connection(db_path)
+        cursor = conn.cursor()
+        
+        # Get all tables
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table';")
+        tables = [row[0] for row in cursor.fetchall()]
+        
+        # Initialize list for all tables
+        for table in tables:
+            adjacency_list[table] = []
+            
+        # Query foreign keys for each table
+        for table in tables:
+            # PRAGMA foreign_key_list(table) returns:
+            # id, seq, table, from, to, on_update, on_delete, match
+            cursor.execute(f"PRAGMA foreign_key_list({table});")
+            fks = cursor.fetchall()
+            
+            for fk in fks:
+                referenced_table = fk[2]
+                
+                if referenced_table and referenced_table in adjacency_list:
+                    # Add bidirectional relationship
+                    if referenced_table not in adjacency_list[table]:
+                        adjacency_list[table].append(referenced_table)
+                    
+                    if table not in adjacency_list[referenced_table]:
+                        adjacency_list[referenced_table].append(table)
+                        
+        logger.info(f"Built adjacency list from DB for {len(adjacency_list)} tables")
+        return adjacency_list
+        
+    except Exception as e:
+        logger.error(f"Error extracting foreign keys from DB: {e}")
+        return {}
+    finally:
+        if conn:
+            conn.close()

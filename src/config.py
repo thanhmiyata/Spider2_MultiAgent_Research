@@ -17,9 +17,9 @@ except Exception as e:
 
 # Model Configuration
 # Updated to fastest models: Claude 3.5 Haiku and Gemini 2.0 Flash (or fallback to gemini-flash-latest)
-DEFAULT_MODEL = "claude-3-5-haiku-20241022"  # Faster than Claude 3 Haiku (~40% improvement)
-GEMINI_MODEL = "gemini-2.0-flash-001"        # Gemini 2.0 Flash (fast), fallback to gemini-flash-latest if not available
-CLAUDE_MODEL = "claude-3-5-haiku-20241022"   # Using Claude 3.5 Haiku for schema linking
+DEFAULT_MODEL = "claude-sonnet-4-5-20250929"  # Claude 3.5 Sonnet (User Requested)
+GEMINI_MODEL = "gemini-2.5-flash"           # Gemini 2.5 Flash (User Requested)
+CLAUDE_MODEL = "claude-sonnet-4-5-20250929"   # Claude 3.5 Sonnet (User Requested)
 
 # API Keys
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
@@ -52,9 +52,9 @@ def get_llm(model_name=DEFAULT_MODEL, temperature=0, timeout=60):
             )
         except Exception as e:
             print(f"Warning: Model {model_name} not available: {e}")
-            print(f"Falling back to claude-3-5-sonnet-20241022")
+            print(f"Falling back to claude-3-5-sonnet-latest")
             return ChatAnthropic(
-                model="claude-3-5-sonnet-20241022", 
+                model="claude-3-5-sonnet-latest", 
                 temperature=temperature, 
                 api_key=ANTHROPIC_API_KEY,
                 timeout=timeout

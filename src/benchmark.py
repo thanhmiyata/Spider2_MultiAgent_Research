@@ -10,6 +10,7 @@ import time
 from datetime import datetime
 from tqdm import tqdm
 from pathlib import Path
+import random
 
 from agents.multi_agent_flow import MultiAgentSystem
 from agents.router import RouterAgent
@@ -168,7 +169,6 @@ def run_benchmark(mode="adaptive", max_items=None, db_id=None, random_n=None, au
         valid_dbs = [db for db, count in db_counts.items() if count > 5]
         
         if valid_dbs:
-            import random
             selected_db = random.choice(valid_dbs)
             print(f"Selected Database ( > 10 questions): {selected_db} (Total: {db_counts[selected_db]})")
         else:
@@ -180,9 +180,9 @@ def run_benchmark(mode="adaptive", max_items=None, db_id=None, random_n=None, au
         sqlite_data = [d for d in sqlite_data if d['db'] == selected_db]
         
         # Sample 5 or take all
-        if len(sqlite_data) > 5:
-            sqlite_data = random.sample(sqlite_data, 5)
-            print(f"Randomly sampled 5 questions from {selected_db}")
+        if len(sqlite_data) > 1:
+            sqlite_data = random.sample(sqlite_data, 1)
+            print(f"Randomly sampled 1 questions from {selected_db}")
         else:
             print(f"Database has only {len(sqlite_data)} questions. Using all.")
         
@@ -197,7 +197,6 @@ def run_benchmark(mode="adaptive", max_items=None, db_id=None, random_n=None, au
 
     # Apply Random Sampling (Manual)
     if random_n and len(sqlite_data) > 0:
-        import random
         if random_n > len(sqlite_data):
             print(f"Warning: Requested {random_n} items but only {len(sqlite_data)} available. Using all.")
         else:

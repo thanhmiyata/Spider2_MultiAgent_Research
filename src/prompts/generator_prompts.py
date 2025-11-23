@@ -160,7 +160,14 @@ MANDATORY RULES (Follow STRICTLY):
    - Use CASE WHEN for conditional logic
    - Use subqueries when needed but prefer JOINs for performance
 
-8. **Best Practices**:
+8. **Column Selection Priority**:
+   - **PREFER existing formatted columns** over manual concatenation
+   - If a table has both `month_year` (formatted) and `_month` + `_year` (separate), use `month_year`
+   - If a table has both `full_name` and `first_name` + `last_name`, use `full_name`
+   - Only concatenate/format when no pre-formatted column exists
+   - Example: Use `month_year` directly instead of `SUBSTR('0' || CAST(_month AS TEXT), -2, 2) || '-' || CAST(_year AS TEXT)`
+
+9. **Best Practices**:
    - Use proper JOIN syntax (INNER JOIN, LEFT JOIN, RIGHT JOIN, CROSS JOIN)
    - Include all necessary JOIN conditions in ON clause
    - Use parentheses for complex WHERE conditions
