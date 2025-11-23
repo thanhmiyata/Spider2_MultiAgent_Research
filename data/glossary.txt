@@ -1,0 +1,32 @@
+# Spider 2.0 Domain Knowledge Glossary
+# Format: Term: Definition or Term = Definition
+
+# Customer Metrics
+Retention Rate: Percentage of users who remain active from one period to the next. Formula: (users_active_today / users_active_yesterday) * 100
+Churn Rate: Percentage of customers who stop using the service. Formula: (customers_lost / total_customers_at_start) * 100
+Customer Lifetime Value: Total revenue expected from a customer over their lifetime. Formula: (average_purchase_value * purchase_frequency * customer_lifespan)
+Active User: A user who has performed at least one significant action (login, purchase, etc.) within the specified time period
+
+# Sales & Revenue Metrics
+Revenue: Total income from sales. Formula: SUM(price * quantity)
+Gross Profit: Revenue minus cost of goods sold. Formula: revenue - cost
+Average Order Value: Average amount spent per order. Formula: total_revenue / number_of_orders
+Conversion Rate: Percentage of visitors who make a purchase. Formula: (purchases / visits) * 100
+
+# Time-based Metrics
+Month-over-Month Growth: Percentage change from one month to the next. Formula: ((current_month - previous_month) / previous_month) * 100
+Year-over-Year Growth: Percentage change from same period last year. Formula: ((current_year - previous_year) / previous_year) * 100
+Moving Average: Average of values over a sliding time window. Formula: AVG(value) OVER (ORDER BY date ROWS BETWEEN n PRECEDING AND CURRENT ROW)
+
+# Product & Inventory
+Stock Turnover: Rate at which inventory is sold and replaced. Formula: cost_of_goods_sold / average_inventory
+Out of Stock Rate: Percentage of time products are unavailable. Formula: (days_out_of_stock / total_days) * 100
+Best Seller: Product with highest sales volume or revenue in a period
+
+# Financial Metrics
+Net Profit Margin: Profit as percentage of revenue. Formula: (net_profit / revenue) * 100
+Return on Investment: Percentage return on an investment. Formula: ((gain_from_investment - cost_of_investment) / cost_of_investment) * 100
+
+# E-commerce Specific
+Cart Abandonment Rate: Percentage of carts not converted to orders. Formula: (carts_created - orders_completed) / carts_created * 100
+Repeat Purchase Rate: Percentage of customers who buy again. Formula: (customers_with_multiple_orders / total_customers) * 100
