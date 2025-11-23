@@ -15,6 +15,7 @@ from agents.multi_agent_flow import MultiAgentSystem
 from agents.router import RouterAgent
 from agents.single_agent import SingleAgent
 from config import DEFAULT_MODEL
+from utils.dataset_filter import filter_data_by_gold_sql
 
 # Get project root directory (parent of src/)
 PROJECT_ROOT = Path(__file__).parent.parent
@@ -108,7 +109,7 @@ def get_optimized_schema(db_path, max_tables=15, max_columns_per_table=20):
     except Exception as e:
         return f"Error reading schema: {e}"
 
-def run_benchmark(mode="adaptive", max_items=None, db_id=None, random_n=None, auto_select_db=False, run_eval=True):
+def run_benchmark(mode="adaptive", max_items=None, db_id=None, random_n=None, auto_select_db=False, run_eval=True, filter_gold_sql=True):
     """
     Run benchmark in specified mode.
     
@@ -117,8 +118,9 @@ def run_benchmark(mode="adaptive", max_items=None, db_id=None, random_n=None, au
         max_items: Maximum number of items to process (None for all)
         db_id: Filter by specific database ID
         random_n: Randomly sample N items (used with db_id)
-        auto_select_db: If True, automatically pick a DB with > 10 questions and sample 5
+        auto_select_db: If True, automatically pick a DB with > 5 questions and sample N
         run_eval: If True, run evaluation after benchmark
+        filter_gold_sql: If True, only include instances with gold SQL files (default: True)
     """
     # Initialize components
     mas = MultiAgentSystem()
@@ -132,6 +134,14 @@ def run_benchmark(mode="adaptive", max_items=None, db_id=None, random_n=None, au
     print(f"Loading data from {DATA_PATH}...")
     with open(str(DATA_PATH), 'r') as f:
         data = [json.loads(line) for line in f]
+    
+    # Filter by gold SQL availability
+    if filter_gold_sql:
+        print("Filtering for instances with gold SQL files...")
+        data = filter_data_by_gold_sql(data)
+        if not data:
+            print("Error: No instances with gold SQL found. Exiting.")
+            return
     
     # Filter for SQLite databases
     if not DB_DIR.exists():
@@ -154,8 +164,8 @@ def run_benchmark(mode="adaptive", max_items=None, db_id=None, random_n=None, au
             print("No SQLite data found.")
             return
 
-        # Try to find DB > 10
-        valid_dbs = [db for db, count in db_counts.items() if count > 10]
+        # Try to find DB > 5
+        valid_dbs = [db for db, count in db_counts.items() if count > 5]
         
         if valid_dbs:
             import random
