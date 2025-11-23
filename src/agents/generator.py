@@ -42,6 +42,23 @@ class Generator:
 
     def generate(self, question: str, schema: str, plan: str) -> str:
         """Generates SQL based on plan with retry logic and timeout."""
+        # Inject Linear Regression Template if needed
+        keywords = ["linear regression", "trend", "slope", "intercept"]
+        if any(k in question.lower() for k in keywords) or any(k in plan.lower() for k in keywords):
+            linear_regression_template = """
+Linear Regression in SQLite Template:
+To calculate Slope (m) and Intercept (b) for y = mx + b:
+SELECT
+  (N * SUM(x*y) - SUM(x)*SUM(y)) / (N * SUM(x*x) - SUM(x)*SUM(x)) AS slope,
+  (SUM(y) - slope * SUM(x)) / N AS intercept
+FROM (
+  SELECT col_x AS x, col_y AS y, COUNT(*) OVER() AS N
+  FROM table_name
+)
+"""
+            # Append to schema or plan to ensure it's seen
+            plan += "\n\n" + linear_regression_template
+
         for attempt in range(self.max_retries):
             try:
                 response = self.chain.invoke({"question": question, "schema": schema, "plan": plan})

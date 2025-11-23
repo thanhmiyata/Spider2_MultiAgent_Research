@@ -63,6 +63,8 @@ class SchemaLinker:
             
             Schema:
             {schema}
+            
+            {fk_hints}
 
             Question: {question}
 
@@ -77,6 +79,33 @@ class SchemaLinker:
             """
         )
         self.chain = self.prompt | self.llm
+
+    def _extract_foreign_keys(self, schema: str) -> str:
+        """Extract foreign key relationships from schema based on naming patterns."""
+        fk_hints = []
+        
+        # Parse schema to find tables and columns
+        tables = self._parse_schema_to_tables(schema)
+        
+        # Common FK patterns: table_id, tablename_id
+        for table_name, table_data in tables.items():
+            cols = table_data.get('columns', [])
+            for col in cols:
+                # Extract column name (before type)
+                col_name = col.split('(')[0].strip().lower()
+                
+                # Check if it's an ID column referencing another table
+                if col_name.endswith('_id') and col_name != f"{table_name.lower()}_id":
+                    # Infer referenced table
+                    ref_table = col_name.replace('_id', '')
+                    
+                    # Check if referenced table exists
+                    if ref_table in [t.lower() for t in tables.keys()]:
+                        fk_hints.append(f"{table_name}.{col_name} <-> {ref_table}.{ref_table}_id")
+        
+        if fk_hints:
+            return "\n[FOREIGN KEY HINTS]\n" + "\n".join(fk_hints) + "\nDo not invent relationships. Use only the Foreign Keys listed above.\n"
+        return ""
 
     def _parse_schema_to_tables(self, schema: str) -> dict:
         """
@@ -180,9 +209,12 @@ class SchemaLinker:
         if self.use_rag:
             schema = self._select_top_k_tables_with_tfidf(question, schema)
         
+        # Extract FK hints
+        fk_hints = self._extract_foreign_keys(schema)
+        
         for attempt in range(self.max_retries):
             try:
-                response = self.chain.invoke({"question": question, "schema": schema})
+                response = self.chain.invoke({"question": question, "schema": schema, "fk_hints": fk_hints})
                 linked_schema = extract_content(response)
                 
                 # Basic validation: check if we got something meaningful

@@ -28,6 +28,9 @@ class Planner:
                - Which tables need to be joined?
                - What are the join keys?
                - Join type (INNER, LEFT, etc.)?
+               - **CRITICAL**: If joining distant tables, specify the complete join path.
+               - Example: "Join Path: orders -> order_items -> products"
+               - Do NOT assume direct joins exist between unrelated tables.
             
             3. **Grouping & Aggregation** (GROUP BY):
                - What grouping columns?

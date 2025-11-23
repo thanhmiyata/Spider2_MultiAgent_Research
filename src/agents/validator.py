@@ -127,6 +127,76 @@ class Validator:
         except Exception as e:
             return f"Syntax Error Detected: {str(e)}"
 
+    def _detect_hallucinated_numbers(self, sql: str) -> str:
+        """Detects hardcoded numbers in SELECT clauses (hallucinations)."""
+        # Look for SELECT followed by a number (integer or float), possibly after a comma
+        # e.g., "SELECT 100", "SELECT 'date', 100", "SELECT col, 100 AS alias"
+        
+        # Pattern: SELECT ... , <number> ... or SELECT <number> ...
+        # We want to avoid matching things like "LIMIT 5" or "OFFSET 10" or "CASE WHEN x=1"
+        
+        # Simplified heuristic: Look for number in SELECT list
+        # This is tricky with regex alone.
+        
+        # Let's look for specific pattern seen in the error:
+        # SELECT '2018-12-05' AS sale_date, 100 AS predicted_sales
+        
+        matches = re.findall(r'SELECT\s+.*?(?:\s|,)((?:\d+(?:\.\d+)?))\s+(?:AS\s+\w+\s+)?(?:FROM|$)', sql, re.IGNORECASE | re.DOTALL)
+        
+        # Filter out common valid numbers like 0, 1 (often used for flags or count)
+        # But even 0 or 1 should usually be calculated if it's a prediction.
+        
+        # A safer check: if we see a UNION ALL with hardcoded numbers, it's definitely a hallucination for this task.
+        if "UNION ALL" in sql.upper() and re.search(r'SELECT\s+.*?\d+', sql):
+             # Check if there's a FROM clause in the sub-selects
+             # If a SELECT has a number but NO "FROM", it's a constant row -> Hallucination (usually)
+             
+             # Find SELECTs without FROM
+             # Split by UNION ALL
+             parts = re.split(r'UNION\s+ALL', sql, flags=re.IGNORECASE)
+             for part in parts:
+                 if "SELECT" in part.upper() and "FROM" not in part.upper():
+                     # Check if it has a number
+                     if re.search(r'\d+', part):
+                         return "Hallucination Detected: The SQL contains hardcoded numbers in SELECT without a FROM clause. You must calculate values using SQL formulas (e.g., Linear Regression formula), not hardcode them."
+        
+        return ""
+
+    def _validate_joins(self, sql: str, schema: str) -> str:
+        """Validates that JOINs follow proper foreign key relationships."""
+        # Extract all table references (FROM and JOIN clauses)
+        # Pattern: FROM table AS alias or JOIN table AS alias
+        table_pattern = r'(?:FROM|JOIN)\s+`?(\w+)`?\s+(?:AS\s+)?(\w+)?'
+        table_refs = re.findall(table_pattern, sql, re.IGNORECASE)
+        
+        # Build alias -> table mapping
+        alias_to_table = {}
+        for table_name, alias in table_refs:
+            table_lower = table_name.lower()
+            alias_lower = (alias or table_name).lower()
+            alias_to_table[alias_lower] = table_lower
+        
+        # Extract JOIN clauses with ON conditions
+        join_pattern = r'(?:INNER\s+JOIN|LEFT\s+JOIN|RIGHT\s+JOIN|JOIN)\s+`?(\w+)`?\s+(?:AS\s+)?(\w+)?\s+ON\s+(\w+)\.(\w+)\s*=\s*(\w+)\.(\w+)'
+        joins = re.findall(join_pattern, sql, re.IGNORECASE)
+        
+        for join in joins:
+            # join format: (joined_table, alias, left_alias, left_col, right_alias, right_col)
+            if len(join) >= 6:
+                left_alias = join[2].lower()
+                right_alias = join[4].lower()
+                
+                # Map aliases to table names
+                left_table = alias_to_table.get(left_alias, left_alias)
+                right_table = alias_to_table.get(right_alias, right_alias)
+                
+                # Check for problematic joins
+                if (left_table == 'orders' and right_table == 'products') or \
+                   (left_table == 'products' and right_table == 'orders'):
+                    return "Missing intermediate table. Orders and Products must be joined via Order_Items. Do not join them directly."
+        
+        return ""
+
     def validate(self, question: str, schema: str, sql: str, max_iterations=3) -> str:
         """Validates and corrects SQL with iterative improvement (3 iterations) and timeout handling."""
         # Clean SQL first
@@ -141,20 +211,28 @@ class Validator:
             # Detect ambiguous columns even if syntax passes
             ambiguous_cols = self._detect_ambiguous_columns(current_sql, schema)
             
+            # Detect hallucinations
+            hallucination_error = self._detect_hallucinated_numbers(current_sql)
+            
+            # Validate joins
+            join_error = self._validate_joins(current_sql, schema)
+            
+            error_messages = []
+            if syntax_error_message:
+                error_messages.append(syntax_error_message)
             if ambiguous_cols:
-                if syntax_error_message:
-                    syntax_error_message += f"\nPotential Ambiguous Columns Detected: {', '.join(ambiguous_cols)}. Please qualify them with table aliases."
-                else:
-                    syntax_error_message = f"Potential Ambiguous Columns Detected: {', '.join(ambiguous_cols)}. Please qualify them with table aliases."
+                error_messages.append(f"Potential Ambiguous Columns Detected: {', '.join(ambiguous_cols)}. Please qualify them with table aliases.")
+            if hallucination_error:
+                error_messages.append(hallucination_error)
+            if join_error:
+                error_messages.append(join_error)
 
             # If no errors found, return the SQL
-            if not syntax_error_message and not ambiguous_cols:
+            if not error_messages:
                 return current_sql
             
             # Prepare error message for LLM
-            error_for_prompt = ""
-            if syntax_error_message and syntax_error_message != "Syntax test passed. No obvious ambiguous columns detected.":
-                error_for_prompt = f"Errors Detected: {syntax_error_message}"
+            error_for_prompt = f"Errors Detected:\n" + "\n".join(error_messages)
             
             # Try to validate with retry logic
             validation_success = False
