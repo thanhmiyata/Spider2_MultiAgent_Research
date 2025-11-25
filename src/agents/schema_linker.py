@@ -18,6 +18,20 @@ except ImportError:
 from config import DEFAULT_MODEL, CLAUDE_MODEL, get_llm, extract_content
 from utils.db_utils import load_schema_metadata, build_adjacency_list
 
+# Table preference rules for selecting better tables over raw/staging versions
+TABLE_PREFERENCE_RULES = {
+    'prefer_prefixes': ['cleaned_', 'processed_', 'final_', 'prod_'],
+    'avoid_prefixes': ['raw_', 'staging_', 'temp_', 'tmp_', 'test_'],
+    'prefer_suffixes': ['_clean', '_processed', '_final'],
+    'avoid_suffixes': ['_raw', '_staging', '_temp', '_test'],
+    # Specific table replacements (raw -> preferred)
+    'specific_replacements': {
+        'weekly_sales': 'cleaned_weekly_sales',
+        'sales': 'cleaned_weekly_sales',
+        'transactions': 'cleaned_transactions',
+    }
+}
+
 # Output format constants
 MAX_PREVIEW_LENGTH = 100  # Maximum length for column preview in descriptions
 MAX_PREVIEW_COLUMNS = 5   # Maximum number of columns to show in preview
@@ -125,23 +139,29 @@ class SchemaLinker:
                 tables[current_table]['columns'] = [col.strip() for col in columns_text.split(',')]
                 tables[current_table]['text'] = f"{current_table} {columns_text}"
             
-            # Alternative schema format: CREATE TABLE
-            elif line.startswith('CREATE TABLE'):
-                match = re.search(r'CREATE TABLE\s+`?(\w+)`?', line, re.IGNORECASE)
+            # Alternative schema format: CREATE TABLE with double quotes, backticks, or no quotes
+            elif line.startswith('CREATE TABLE') or 'CREATE TABLE' in line.upper():
+                # Match table names with backticks, double quotes, or no quotes
+                match = re.search(r'CREATE TABLE\s+[`"\']?(\w+)[`"\']?', line, re.IGNORECASE)
                 if match:
                     table_name = match.group(1)
                     current_table = table_name
                     tables[current_table] = {'columns': [], 'text': table_name}
             
-            # Extract column from CREATE TABLE format
-            elif current_table and '`' in line:
-                match = re.search(r'`(\w+)`\s+(\w+)', line)
-                if match:
+            # Extract column from CREATE TABLE format - handle double quotes, backticks, or no quotes
+            elif current_table:
+                # Try to match column definitions with various quote styles
+                # Pattern: "column_name" TYPE or `column_name` TYPE or column_name TYPE
+                match = re.search(r'[`"\']?(\w+)[`"\']?\s+(\w+)', line)
+                if match and not line.upper().startswith('CREATE'):
                     col_name = match.group(1)
                     col_type = match.group(2)
-                    col_entry = f"{col_name} ({col_type})"
-                    tables[current_table]['columns'].append(col_entry)
-                    tables[current_table]['text'] += f" {col_name}"
+                    
+                    # Skip SQL keywords
+                    if col_type.upper() not in ['TABLE', 'INDEX', 'VIEW', 'TRIGGER']:
+                        col_entry = f"{col_name} ({col_type})"
+                        tables[current_table]['columns'].append(col_entry)
+                        tables[current_table]['text'] += f" {col_name}"
         
         return tables
 
@@ -154,11 +174,16 @@ class SchemaLinker:
         if not self.use_rag:
             # If RAG disabled, return all tables
             tables = self._parse_schema_to_tables(schema)
+            print(f"[SchemaLinker Step 1] RAG disabled, returning all {len(tables)} tables")
             return set(tables.keys())
         
         tables = self._parse_schema_to_tables(schema)
         
+        print(f"[SchemaLinker Step 1] Parsed {len(tables)} tables from schema")
+        print(f"[SchemaLinker Step 1] Table names: {list(tables.keys())[:10]}...")  # Show first 10
+        
         if not tables or len(tables) <= self.top_k:
+            print(f"[SchemaLinker Step 1] Table count ({len(tables)}) <= top_k ({self.top_k}), returning all")
             return set(tables.keys())
         
         try:
@@ -166,24 +191,42 @@ class SchemaLinker:
             table_names = list(tables.keys())
             table_texts = [tables[name]['text'] for name in table_names]
             
+            print(f"[SchemaLinker Step 1] Question: {question[:100]}...")
+            print(f"[SchemaLinker Step 1] Sample table texts:")
+            for i, (name, text) in enumerate(zip(table_names[:3], table_texts[:3])):
+                print(f"  - {name}: {text[:80]}...")
+            
             # Create TF-IDF matrix
             all_docs = [question] + table_texts
             tfidf_matrix = self.vectorizer.fit_transform(all_docs)
+            
+            print(f"[SchemaLinker Step 1] TF-IDF matrix shape: {tfidf_matrix.shape}")
             
             # Calculate cosine similarity between question and each table
             question_vector = tfidf_matrix[0:1]
             table_vectors = tfidf_matrix[1:]
             similarities = cosine_similarity(question_vector, table_vectors)[0]
             
+            print(f"[SchemaLinker Step 1] Similarities shape: {similarities.shape}")
+            print(f"[SchemaLinker Step 1] Similarity range: [{similarities.min():.4f}, {similarities.max():.4f}]")
+            print(f"[SchemaLinker Step 1] Top 5 similarities: {sorted(similarities, reverse=True)[:5]}")
+            
             # Get top-k table indices
             top_indices = np.argsort(similarities)[-self.top_k:][::-1]
             initial_set = {table_names[i] for i in top_indices}
+            
+            print(f"[SchemaLinker Step 1] Top {self.top_k} indices: {top_indices}")
+            print(f"[SchemaLinker Step 1] Top {self.top_k} tables with scores:")
+            for idx in top_indices:
+                print(f"  - {table_names[idx]}: {similarities[idx]:.4f}")
             
             print(f"[SchemaLinker Step 1] Initial retrieval selected {len(initial_set)} tables: {initial_set}")
             return initial_set
             
         except Exception as e:
             print(f"[SchemaLinker Step 1] TF-IDF retrieval failed: {e}, using all tables")
+            import traceback
+            traceback.print_exc()
             return set(tables.keys())
 
     def _detect_implicit_fks(self, schema: str) -> Dict[str, List[str]]:
@@ -302,6 +345,83 @@ class SchemaLinker:
         print(f"[SchemaLinker Step 2] Candidate set: {candidate_set}")
         return candidate_set
 
+    def _get_available_tables(self, schema: str) -> Set[str]:
+        """
+        Get all available table names from schema.
+        
+        Args:
+            schema: Full schema string
+            
+        Returns: Set of all table names
+        """
+        all_tables = self._parse_schema_to_tables(schema)
+        return set(all_tables.keys())
+
+    def _apply_table_preferences(self, tables: Set[str], schema: str) -> Set[str]:
+        """
+        Apply preference rules to select better tables over raw/staging versions.
+        
+        This implements heuristic-based table selection to prefer:
+        - cleaned_ over raw tables
+        - processed_ over unprocessed
+        - Specific replacements (e.g., weekly_sales -> cleaned_weekly_sales)
+        
+        Args:
+            tables: Set of initially selected table names
+            schema: Full schema string (to check availability)
+            
+        Returns: Set of preferred table names
+        """
+        available_tables = self._get_available_tables(schema)
+        preferred_tables = set(tables)
+        
+        # Apply specific replacements first (highest priority)
+        for raw_table, preferred_table in TABLE_PREFERENCE_RULES['specific_replacements'].items():
+            if raw_table in preferred_tables and preferred_table in available_tables:
+                print(f"[SchemaLinker] Table preference: {raw_table} -> {preferred_table}")
+                preferred_tables.remove(raw_table)
+                preferred_tables.add(preferred_table)
+        
+        # Apply prefix-based preferences
+        for table in list(preferred_tables):
+            # Check if this table should be replaced by a cleaned version
+            for prefix in TABLE_PREFERENCE_RULES['prefer_prefixes']:
+                cleaned_version = prefix + table
+                if cleaned_version in available_tables:
+                    print(f"[SchemaLinker] Table preference: {table} -> {cleaned_version}")
+                    preferred_tables.remove(table)
+                    preferred_tables.add(cleaned_version)
+                    break
+        
+        # Remove tables with avoid prefixes/suffixes if better alternatives exist
+        tables_to_remove = set()
+        for table in preferred_tables:
+            # Check avoid prefixes
+            for prefix in TABLE_PREFERENCE_RULES['avoid_prefixes']:
+                if table.startswith(prefix):
+                    # Try to find non-prefixed version
+                    clean_name = table[len(prefix):]
+                    if clean_name in available_tables:
+                        print(f"[SchemaLinker] Avoiding {table}, using {clean_name}")
+                        tables_to_remove.add(table)
+                        preferred_tables.add(clean_name)
+                        break
+            
+            # Check avoid suffixes
+            for suffix in TABLE_PREFERENCE_RULES['avoid_suffixes']:
+                if table.endswith(suffix):
+                    # Try to find non-suffixed version
+                    clean_name = table[:-len(suffix)]
+                    if clean_name in available_tables:
+                        print(f"[SchemaLinker] Avoiding {table}, using {clean_name}")
+                        tables_to_remove.add(table)
+                        preferred_tables.add(clean_name)
+                        break
+        
+        preferred_tables -= tables_to_remove
+        
+        return preferred_tables
+
     def _step3_llm_reranking(self, question: str, candidate_tables: Set[str], schema: str) -> Dict[str, List[str]]:
         """
         Step 3: LLM Reranking - Refine selection to only strictly necessary tables and columns.
@@ -317,6 +437,9 @@ class SchemaLinker:
         """
         if not candidate_tables:
             return {}
+        
+        # Apply table preferences BEFORE LLM reranking
+        candidate_tables = self._apply_table_preferences(candidate_tables, schema)
         
         # Parse schema to get table descriptions
         all_tables = self._parse_schema_to_tables(schema)
@@ -380,6 +503,30 @@ class SchemaLinker:
                     for table, columns in selected_data.items():
                         if table in candidate_tables:
                             if isinstance(columns, list):
+                                # Ensure numeric columns are included for aggregations
+                                all_table_cols = all_tables.get(table, {}).get('columns', [])
+                                
+                                # Detect if question involves aggregations
+                                aggregation_keywords = ['sum', 'total', 'average', 'avg', 'count', 'max', 'min', 
+                                                       'calculate', 'percentage', 'change', 'sales', 'revenue']
+                                needs_aggregation = any(kw in question.lower() for kw in aggregation_keywords)
+                                
+                                if needs_aggregation:
+                                    # Find numeric columns in this table
+                                    numeric_types = ['INTEGER', 'REAL', 'NUMERIC', 'FLOAT', 'DOUBLE']
+                                    numeric_cols = []
+                                    for col in all_table_cols:
+                                        col_name = col.split('(')[0].strip()
+                                        col_type = col.split('(')[1].split(')')[0].strip() if '(' in col else ''
+                                        if col_type.upper() in numeric_types:
+                                            numeric_cols.append(col_name)
+                                    
+                                    # Add missing numeric columns
+                                    for num_col in numeric_cols:
+                                        if num_col not in columns:
+                                            columns.append(num_col)
+                                            print(f"[SchemaLinker] Added essential numeric column for aggregation: {table}.{num_col}")
+                                
                                 filtered_result[table] = columns
                             else:
                                 # Fallback: if not a list, include all columns

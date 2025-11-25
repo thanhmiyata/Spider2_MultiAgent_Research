@@ -7,6 +7,14 @@ from tqdm import tqdm
 from pathlib import Path
 from datetime import datetime
 
+# Import enhanced execution evaluator
+from utils.execution_evaluator import (
+    execute_sql_to_dataframe,
+    compare_dataframes,
+    evaluate_sql_pair,
+    has_order_by
+)
+
 # Configuration
 PROJECT_ROOT = Path(__file__).parent.parent
 GOLD_DIR = PROJECT_ROOT / "data/spider2_lite/evaluation_suite/gold/sql"
@@ -15,7 +23,10 @@ METADATA_PATH = PROJECT_ROOT / "data/spider2_lite/evaluation_suite/gold/spider2l
 DB_DIR = PROJECT_ROOT / "data/spider2_lite/resource/databases/sqlite"
 
 def execute_sql(db_path, sql):
-    """Executes SQL and returns result as a set of tuples for comparison."""
+    """
+    DEPRECATED: Use execute_sql_to_dataframe instead.
+    Kept for backward compatibility with CSV comparison.
+    """
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
@@ -149,21 +160,28 @@ def evaluate_results(results_file, output_dir=None):
         latest_results[item['instance_id']] = item
     results = list(latest_results.values())
 
-    correct_count = 0
-    total_count = 0
+    total = 0
     syntax_error_count = 0
     execution_error_count = 0
     empty_sql_count = 0
     
-    details = []
+    # Statistics
+    total = 0
+    correct = 0
+    failed = 0
+    by_complexity = {
+        "EASY": {"total": 0, "correct": 0},
+        "MEDIUM": {"total": 0, "correct": 0},
+        "HARD": {"total": 0, "correct": 0}
+    }
+    by_agent = {
+        "single": {"total": 0, "correct": 0},
+        "multi": {"total": 0, "correct": 0}
+    }
     
-    # Group by complexity and agent type
-    by_complexity = {"EASY": {"total": 0, "correct": 0}, 
-                     "MEDIUM": {"total": 0, "correct": 0}, 
-                     "HARD": {"total": 0, "correct": 0}}
-    by_agent = {"single": {"total": 0, "correct": 0}, 
-                "multi": {"total": 0, "correct": 0}}
-
+    # Details list for failure analysis
+    failure_details = []
+    
     for item in tqdm(results, desc="Evaluating"):
         instance_id = item['instance_id']
         db_id = item.get('db_id', '')
@@ -183,7 +201,7 @@ def evaluate_results(results_file, output_dir=None):
                 "error_type": "empty_sql",
                 "error": "Empty SQL generated"
             })
-            total_count += 1
+            total += 1
             continue
 
         # Locate DB
@@ -213,37 +231,48 @@ def evaluate_results(results_file, output_dir=None):
                 error_type = "execution_error"
             error_msg = pred_result
 
-        # Determine Correctness
+        # Determine Correctness using DataFrame comparison
         is_correct = False
+        error_type = None
+        error_msg = None
+        comparison_details = {}
         
-        # 1. Try Gold SQL File
+        # 1. Try Gold SQL File with DataFrame comparison
         gold_path = GOLD_DIR / f"{instance_id}.sql"
         if gold_path.exists():
             with open(gold_path, 'r') as f:
                 gold_sql = f.read().strip()
-            gold_result = execute_sql(db_path, gold_sql)
             
-            if isinstance(pred_result, str) and pred_result.startswith("Error"):
-                is_correct = False
-            else:
-                # Normalize both for comparison
-                is_correct = (normalize_set(pred_result) == normalize_set(gold_result))
+            # Use enhanced evaluation
+            is_correct, error_type, details = evaluate_sql_pair(
+                str(db_path),
+                generated_sql,
+                gold_sql,
+                tolerance=1e-4
+            )
+            
+            comparison_details = details
+            
+            if not is_correct and error_type:
+                error_msg = details.get('error_message', details.get('comparison_details', 'Unknown error'))
         
-        # 2. Try CSV Comparison
+        # 2. Fallback to CSV Comparison (for backward compatibility)
         elif instance_id in metadata:
+            pred_result = execute_sql(db_path, generated_sql)
             is_correct = compare_with_csv(pred_result, instance_id, metadata[instance_id])
+            if not is_correct:
+                error_type = "result_mismatch"
+                error_msg = "CSV comparison failed"
         
         else:
             # No gold standard found
             print(f"Warning: No gold standard found for {instance_id}")
-            # Skip counting this item? Or count as failed?
-            # Usually skip if we can't evaluate.
             continue
 
         if is_correct:
-            correct_count += 1
+            correct += 1
         
-        total_count += 1
+        total += 1
         
         # Update statistics by complexity
         if complexity and complexity in by_complexity:
@@ -257,7 +286,7 @@ def evaluate_results(results_file, output_dir=None):
             if is_correct:
                 by_agent[agent_used]["correct"] += 1
         
-        details.append({
+        failure_details.append({
             "instance_id": instance_id,
             "db_id": db_id,
             "is_correct": is_correct,
@@ -269,7 +298,7 @@ def evaluate_results(results_file, output_dir=None):
         })
 
     # Calculate metrics
-    accuracy = (correct_count / total_count) * 100 if total_count > 0 else 0
+    accuracy = (correct / total) * 100 if total > 0 else 0
     
     # Calculate accuracy by complexity
     complexity_acc = {}
@@ -291,8 +320,8 @@ def evaluate_results(results_file, output_dir=None):
     print(f"\n{'='*60}")
     print("Evaluation Complete")
     print(f"{'='*60}")
-    print(f"Total Evaluated: {total_count}")
-    print(f"Correct: {correct_count}")
+    print(f"Total Evaluated: {total}")
+    print(f"Correct: {correct}")
     print(f"Accuracy: {accuracy:.2f}%")
     print(f"\nError Breakdown:")
     print(f"  Empty SQL: {empty_sql_count}")
@@ -324,8 +353,8 @@ def evaluate_results(results_file, output_dir=None):
     
     # Save summary JSON
     summary = {
-        "total": total_count,
-        "correct": correct_count,
+        "total": total,
+        "correct": correct,
         "accuracy": accuracy,
         "errors": {
             "empty_sql": empty_sql_count,

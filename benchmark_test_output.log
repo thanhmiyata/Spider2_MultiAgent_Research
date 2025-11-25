@@ -1,0 +1,882 @@
+[KnowledgeRetriever] Loaded 18 terms from glossary
+Loading data from /Users/Krizpham/Thac si/Spider2_MultiAgent_Research/data/spider2_lite/spider2-lite.jsonl...
+Filtering for instances with gold SQL files...
+Found 256 instances with gold SQL files
+Filtered 547 items -> 250 items with gold SQL
+Found 31 available databases
+Running benchmark on 10 items (limited)
+
+============================================================
+Running ADAPTIVE mode benchmark
+============================================================
+
+Processing:   0%|          | 0/10 [00:00<?, ?it/s]Processing:  10%|█         | 1/10 [00:44<06:39, 44.36s/it]Processing:  20%|██        | 2/10 [01:15<04:52, 36.56s/it]  [Router] Analyzing: According to the RFM definition document, calculate the aver...
+  [Router] Classified as: HARD
+  [Multi] Processing HARD question...
+  [MAS] Processing: According to the RFM definition document, calculate the average sales per order ...
+  [MAS] Step 0: Domain Knowledge Retrieval...
+  [MAS] Step 0 took 0.0s | No domain knowledge found
+  [MAS] Step 1: Schema Linking...
+
+[SchemaLinker] Starting 3-step schema linking process...
+[SchemaLinker Step 1] Parsed 1 tables from schema
+[SchemaLinker Step 1] Table names: ['customers']...
+[SchemaLinker Step 1] Table count (1) <= top_k (5), returning all
+[SchemaLinker Step 2] Graph expansion: 1 -> 1 tables
+[SchemaLinker Step 2] Candidate set: {'customers'}
+[SchemaLinker Step 3] LLM reranking: 1 -> 1 tables
+[SchemaLinker Step 3] Selected with columns: {'customers': ['customer_unique_id']}
+[SchemaLinker] Linking complete. Selected 1 tables.
+
+  [MAS] Step 1 took 4.97s | Linked Schema length: 590 chars
+  [MAS] Step 2: Planning...
+  [MAS] Step 2 took 11.06s | Plan length: 4575 chars
+  [MAS] Step 3: SQL Generation...
+  [MAS] Step 3 took 10.24s | Generated SQL length: 1925 chars
+  [MAS] Step 4: Validation & Correction...
+  [MAS] Step 4 took 15.18s | Final SQL: WITH delivered_orders AS (
+    SELECT o.order_id, 
+           o.customer_unique_id, 
+           o.or...
+
+  [MAS] ===== TIMING SUMMARY =====
+  Knowledge Retrieval: 0.0s
+  Schema Linking: 4.97s
+  Planning:       11.06s
+  Generation:     10.24s
+  Validation:     15.18s
+  TOTAL:          41.45s
+  ============================
+
+  [Router] Analyzing: Could you tell me the number of orders, average payment per ...
+  [Router] Classified as: HARD
+  [Multi] Processing HARD question...
+  [MAS] Processing: Could you tell me the number of orders, average payment per order and customer l...
+  [MAS] Step 0: Domain Knowledge Retrieval...
+  [MAS] Step 0 took 0.0s | No domain knowledge found
+  [MAS] Step 1: Schema Linking...
+
+[SchemaLinker] Starting 3-step schema linking process...
+[SchemaLinker Step 1] Parsed 1 tables from schema
+[SchemaLinker Step 1] Table names: ['customers']...
+[SchemaLinker Step 1] Table count (1) <= top_k (5), returning all
+[SchemaLinker Step 2] Graph expansion: 1 -> 1 tables
+[SchemaLinker Step 2] Candidate set: {'customers'}
+[SchemaLinker Step 3] LLM reranking: 1 -> 1 tables
+[SchemaLinker Step 3] Selected with columns: {'customers': ['customer_id']}
+[SchemaLinker] Linking complete. Selected 1 tables.
+
+  [MAS] Step 1 took 4.3s | Linked Schema length: 425 chars
+  [MAS] Step 2: Planning...
+  [MAS] Step 2 took 8.0s | Plan length: 4770 chars
+  [MAS] Step 3: SQL Generation...
+  [MAS] Step 3 took 5.35s | Generated SQL length: 1212 chars
+  [MAS] Step 4: Validation & Correction...
+  [MAS] Step 4 took 10.88s | Final SQL: WITH CustomerOrderData AS (
+    SELECT
+        c.customer_id,
+        COUNT(o.order_id) AS num_order...
+
+  [MAS] ===== TIMING SUMMARY =====
+  Knowledge Retrieval: 0.0s
+  Schema Linking: 4.3s
+  Planning:       8.0s
+  Generation:     5.35s
+  Validation:     10.88s
+  TOTAL:          28.53s
+  ============================
+
+  [Router] Analyzing: I would like to know the given names of baseball players who...
+  [Router] Classified as: HARD
+  [Multi] Processing HARD question...
+  [MAS] Processing: I would like to know the given names of baseball players who have achieved the h...
+  [MAS] Step 0: Domain Knowledge Retrieval...
+  [MAS] Step 0 took 0.0s | No domain knowledge found
+  [MAS] Step 1: Schema Linking...
+
+[SchemaLinker] Starting 3-step schema linking process...
+[SchemaLinker Step 1] Parsed 15 tables from schema
+[SchemaLinker Step 1] Table names: ['all_star', 'appearances', 'batting', 'batting_postseason', 'college', 'fielding', 'fielding_outfield', 'fielding_postseason', 'hall_of_fame', 'home_game']...
+[SchemaLinker Step 1] Question: I would like to know the given names of baseball players who have achieved the highest value of game...
+[SchemaLinker Step 1] Sample table texts:
+  - all_star: all_star player_id, year, game_num, game_id, team_id, league_id, gp, starting_po...
+  - appearances: appearances year, team_id, league_id, player_id, g_all, gs, g_batting, g_defense...
+  - batting: batting player_id, year, stint, team_id, league_id, g, ab, r, h, double, triple,...
+[SchemaLinker Step 1] TF-IDF matrix shape: (16, 110)
+[SchemaLinker Step 1] Similarities shape: (15,)
+[SchemaLinker Step 1] Similarity range: [0.0000, 0.0640]
+[SchemaLinker Step 1] Top 5 similarities: [np.float64(0.06402435398404421), np.float64(0.0), np.float64(0.0), np.float64(0.0), np.float64(0.0)]
+[SchemaLinker Step 1] Top 5 indices: [ 9 14 13 12 11]
+[SchemaLinker Step 1] Top 5 tables with scores:
+  - home_game: 0.0640
+  - park: 0.0000
+  - manager_half: 0.0000
+  - manager_award_vote: 0.0000
+  - manager_award: 0.0000
+[SchemaLinker Step 1] Initial retrieval selected 5 tables: {'manager_half', 'park', 'manager_award', 'home_game', 'manager_award_vote'}
+[SchemaLinker] Detected implicit FK: all_star.player_id <-> appearances.player_id
+[SchemaLinker] Detected implicit FK: all_star.player_id <-> batting.player_id
+[SchemaLinker] Detected implicit FK: all_star.player_id <-> batting_postseason.player_id
+[SchemaLinker] Detected implicit FK: all_star.player_id <-> fielding.player_id
+[SchemaLinker] Detected implicit FK: all_star.player_id <-> fielding_outfield.player_id
+[SchemaLinker] Detected implicit FK: all_star.player_id <-> fielding_postseason.player_id
+[SchemaLinker] Detected implicit FK: all_star.player_id <-> hall_of_fame.player_id
+[SchemaLinker] Detected implicit FK: all_star.player_id <-> manager.player_id
+[SchemaLinker] Detected implicit FK: all_star.player_id <-> manager_award.player_id
+[SchemaLinker] Detected implicit FK: all_star.player_id <-> manager_award_vote.player_id
+[SchemaLinker] Detected implicit FK: all_star.player_id <-> manager_half.player_id
+[SchemaLinker] Detected implicit FK: appearances.player_id <-> batting.player_id
+[SchemaLinker] Detected implicit FK: appearances.player_id <-> batting_postseason.player_id
+[SchemaLinker] Detected implicit FK: appearances.player_id <-> fielding.player_id
+[SchemaLinker] Detected implicit FK: appearances.player_id <-> fielding_outfield.player_id
+[SchemaLinker] Detected implicit FK: appearances.player_id <-> fielding_postseason.player_id
+[SchemaLinker] Detected implicit FK: appearances.player_id <-> hall_of_fame.player_id
+[SchemaLinker] Detected implicit FK: appearances.player_id <-> manager.player_id
+[SchemaLinker] Detected implicit FK: appearances.player_id <-> manager_award.player_id
+[SchemaLinker] Detected implicit FK: appearances.player_id <-> manager_award_vote.player_id
+[SchemaLinker] Detected implicit FK: appearances.player_id <-> manager_half.player_id
+[SchemaLinker] Detected implicit FK: batting.player_id <-> batting_postseason.player_id
+[SchemaLinker] Detected implicit FK: batting.player_id <-> fielding.player_id
+[SchemaLinker] Detected implicit FK: batting.player_id <-> fielding_outfield.player_id
+[SchemaLinker] Detected implicit FK: batting.player_id <-> fielding_postseason.player_id
+[SchemaLinker] Detected implicit FK: batting.player_id <-> hall_of_fame.player_id
+[SchemaLinker] Detected implicit FK: batting.player_id <-> manager.player_id
+[SchemaLinker] Detected implicit FK: batting.player_id <-> manager_award.player_id
+[SchemaLinker] Detected implicit FK: batting.player_id <-> manager_award_vote.player_id
+[SchemaLinker] Detected implicit FK: batting.player_id <-> manager_half.player_id
+[SchemaLinker] Detected implicit FK: batting_postseason.player_id <-> fielding.player_id
+[SchemaLinker] Detected implicit FK: batting_postseason.player_id <-> fielding_outfield.player_id
+[SchemaLinker] Detected implicit FK: batting_postseason.player_id <-> fielding_postseason.player_id
+[SchemaLinker] Detected implicit FK: batting_postseason.player_id <-> hall_of_fame.player_id
+[SchemaLinker] Detected implicit FK: batting_postseason.player_id <-> manager.player_id
+[SchemaLinker] Detected implicit FK: batting_postseason.player_id <-> manager_award.player_id
+[SchemaLinker] Detected implicit FK: batting_postseason.player_id <-> manager_award_vote.player_id
+[SchemaLinker] Detected implicit FK: batting_postseason.player_id <-> manager_half.player_idProcessing:  30%|███       | 3/10 [01:38<03:33, 30.45s/it]Processing:  40%|████      | 4/10 [02:07<02:58, 29.77s/it]
+[SchemaLinker] Detected implicit FK: fielding.player_id <-> fielding_outfield.player_id
+[SchemaLinker] Detected implicit FK: fielding.player_id <-> fielding_postseason.player_id
+[SchemaLinker] Detected implicit FK: fielding.player_id <-> hall_of_fame.player_id
+[SchemaLinker] Detected implicit FK: fielding.player_id <-> manager.player_id
+[SchemaLinker] Detected implicit FK: fielding.player_id <-> manager_award.player_id
+[SchemaLinker] Detected implicit FK: fielding.player_id <-> manager_award_vote.player_id
+[SchemaLinker] Detected implicit FK: fielding.player_id <-> manager_half.player_id
+[SchemaLinker] Detected implicit FK: fielding_outfield.player_id <-> fielding_postseason.player_id
+[SchemaLinker] Detected implicit FK: fielding_outfield.player_id <-> hall_of_fame.player_id
+[SchemaLinker] Detected implicit FK: fielding_outfield.player_id <-> manager.player_id
+[SchemaLinker] Detected implicit FK: fielding_outfield.player_id <-> manager_award.player_id
+[SchemaLinker] Detected implicit FK: fielding_outfield.player_id <-> manager_award_vote.player_id
+[SchemaLinker] Detected implicit FK: fielding_outfield.player_id <-> manager_half.player_id
+[SchemaLinker] Detected implicit FK: fielding_postseason.player_id <-> hall_of_fame.player_id
+[SchemaLinker] Detected implicit FK: fielding_postseason.player_id <-> manager.player_id
+[SchemaLinker] Detected implicit FK: fielding_postseason.player_id <-> manager_award.player_id
+[SchemaLinker] Detected implicit FK: fielding_postseason.player_id <-> manager_award_vote.player_id
+[SchemaLinker] Detected implicit FK: fielding_postseason.player_id <-> manager_half.player_id
+[SchemaLinker] Detected implicit FK: hall_of_fame.player_id <-> manager.player_id
+[SchemaLinker] Detected implicit FK: hall_of_fame.player_id <-> manager_award.player_id
+[SchemaLinker] Detected implicit FK: hall_of_fame.player_id <-> manager_award_vote.player_id
+[SchemaLinker] Detected implicit FK: hall_of_fame.player_id <-> manager_half.player_id
+[SchemaLinker] Detected implicit FK: manager.player_id <-> manager_award.player_id
+[SchemaLinker] Detected implicit FK: manager.player_id <-> manager_award_vote.player_id
+[SchemaLinker] Detected implicit FK: manager.player_id <-> manager_half.player_id
+[SchemaLinker] Detected implicit FK: manager_award.player_id <-> manager_award_vote.player_id
+[SchemaLinker] Detected implicit FK: manager_award.player_id <-> manager_half.player_id
+[SchemaLinker] Detected implicit FK: manager_award_vote.player_id <-> manager_half.player_id
+[SchemaLinker] Detected implicit FK: all_star.team_id <-> appearances.team_id
+[SchemaLinker] Detected implicit FK: all_star.team_id <-> batting.team_id
+[SchemaLinker] Detected implicit FK: all_star.team_id <-> batting_postseason.team_id
+[SchemaLinker] Detected implicit FK: all_star.team_id <-> fielding.team_id
+[SchemaLinker] Detected implicit FK: all_star.team_id <-> fielding_postseason.team_id
+[SchemaLinker] Detected implicit FK: all_star.team_id <-> home_game.team_id
+[SchemaLinker] Detected implicit FK: all_star.team_id <-> manager.team_id
+[SchemaLinker] Detected implicit FK: all_star.team_id <-> manager_half.team_id
+[SchemaLinker] Detected implicit FK: appearances.team_id <-> batting.team_id
+[SchemaLinker] Detected implicit FK: appearances.team_id <-> batting_postseason.team_id
+[SchemaLinker] Detected implicit FK: appearances.team_id <-> fielding.team_id
+[SchemaLinker] Detected implicit FK: appearances.team_id <-> fielding_postseason.team_id
+[SchemaLinker] Detected implicit FK: appearances.team_id <-> home_game.team_id
+[SchemaLinker] Detected implicit FK: appearances.team_id <-> manager.team_id
+[SchemaLinker] Detected implicit FK: appearances.team_id <-> manager_half.team_id
+[SchemaLinker] Detected implicit FK: batting.team_id <-> batting_postseason.team_id
+[SchemaLinker] Detected implicit FK: batting.team_id <-> fielding.team_id
+[SchemaLinker] Detected implicit FK: batting.team_id <-> fielding_postseason.team_id
+[SchemaLinker] Detected implicit FK: batting.team_id <-> home_game.team_id
+[SchemaLinker] Detected implicit FK: batting.team_id <-> manager.team_id
+[SchemaLinker] Detected implicit FK: batting.team_id <-> manager_half.team_id
+[SchemaLinker] Detected implicit FK: batting_postseason.team_id <-> fielding.team_id
+[SchemaLinker] Detected implicit FK: batting_postseason.team_id <-> fielding_postseason.team_id
+[SchemaLinker] Detected implicit FK: batting_postseason.team_id <-> home_game.team_id
+[SchemaLinker] Detected implicit FK: batting_postseason.team_id <-> manager.team_id
+[SchemaLinker] Detected implicit FK: batting_postseason.team_id <-> manager_half.team_id
+[SchemaLinker] Detected implicit FK: fielding.team_id <-> fielding_postseason.team_id
+[SchemaLinker] Detected implicit FK: fielding.team_id <-> home_game.team_id
+[SchemaLinker] Detected implicit FK: fielding.team_id <-> manager.team_id
+[SchemaLinker] Detected implicit FK: fielding.team_id <-> manager_half.team_id
+[SchemaLinker] Detected implicit FK: fielding_postseason.team_id <-> home_game.team_id
+[SchemaLinker] Detected implicit FK: fielding_postseason.team_id <-> manager.team_id
+[SchemaLinker] Detected implicit FK: fielding_postseason.team_id <-> manager_half.team_id
+[SchemaLinker] Detected implicit FK: home_game.team_id <-> manager.team_id
+[SchemaLinker] Detected implicit FK: home_game.team_id <-> manager_half.team_id
+[SchemaLinker] Detected implicit FK: manager.team_id <-> manager_half.team_id
+[SchemaLinker] Detected implicit FK: all_star.league_id <-> appearances.league_id
+[SchemaLinker] Detected implicit FK: all_star.league_id <-> batting.league_id
+[SchemaLinker] Detected implicit FK: all_star.league_id <-> batting_postseason.league_id
+[SchemaLinker] Detected implicit FK: all_star.league_id <-> fielding.league_id
+[SchemaLinker] Detected implicit FK: all_star.league_id <-> fielding_postseason.league_id
+[SchemaLinker] Detected implicit FK: all_star.league_id <-> home_game.league_id
+[SchemaLinker] Detected implicit FK: all_star.league_id <-> manager.league_id
+[SchemaLinker] Detected implicit FK: all_star.league_id <-> manager_award.league_id
+[SchemaLinker] Detected implicit FK: all_star.league_id <-> manager_award_vote.league_id
+[SchemaLinker] Detected implicit FK: all_star.league_id <-> manager_half.league_id
+[SchemaLinker] Detected implicit FK: appearances.league_id <-> batting.league_id
+[SchemaLinker] Detected implicit FK: appearances.league_id <-> batting_postseason.league_id
+[SchemaLinker] Detected implicit FK: appearances.league_id <-> fielding.league_id
+[SchemaLinker] Detected implicit FK: appearances.league_id <-> fielding_postseason.league_id
+[SchemaLinker] Detected implicit FK: appearances.league_id <-> home_game.league_id
+[SchemaLinker] Detected implicit FK: appearances.league_id <-> manager.league_id
+[SchemaLinker] Detected implicit FK: appearances.league_id <-> manager_award.league_id
+[SchemaLinker] Detected implicit FK: appearances.league_id <-> manager_award_vote.league_id
+[SchemaLinker] Detected implicit FK: appearances.league_id <-> manager_half.league_id
+[SchemaLinker] Detected implicit FK: batting.league_id <-> batting_postseason.league_id
+[SchemaLinker] Detected implicit FK: batting.league_id <-> fielding.league_id
+[SchemaLinker] Detected implicit FK: batting.league_id <-> fielding_postseason.league_id
+[SchemaLinker] Detected implicit FK: batting.league_id <-> home_game.league_id
+[SchemaLinker] Detected implicit FK: batting.league_id <-> manager.league_id
+[SchemaLinker] Detected implicit FK: batting.league_id <-> manager_award.league_id
+[SchemaLinker] Detected implicit FK: batting.league_id <-> manager_award_vote.league_id
+[SchemaLinker] Detected implicit FK: batting.league_id <-> manager_half.league_id
+[SchemaLinker] Detected implicit FK: batting_postseason.league_id <-> fielding.league_id
+[SchemaLinker] Detected implicit FK: batting_postseason.league_id <-> fielding_postseason.league_id
+[SchemaLinker] Detected implicit FK: batting_postseason.league_id <-> home_game.league_id
+[SchemaLinker] Detected implicit FK: batting_postseason.league_id <-> manager.league_id
+[SchemaLinker] Detected implicit FK: batting_postseason.league_id <-> manager_award.league_id
+[SchemaLinker] Detected implicit FK: batting_postseason.league_id <-> manager_award_vote.league_idProcessing:  50%|█████     | 5/10 [02:24<02:06, 25.39s/it]Processing:  60%|██████    | 6/10 [02:48<01:39, 24.83s/it]
+[SchemaLinker] Detected implicit FK: batting_postseason.league_id <-> manager_half.league_id
+[SchemaLinker] Detected implicit FK: fielding.league_id <-> fielding_postseason.league_id
+[SchemaLinker] Detected implicit FK: fielding.league_id <-> home_game.league_id
+[SchemaLinker] Detected implicit FK: fielding.league_id <-> manager.league_id
+[SchemaLinker] Detected implicit FK: fielding.league_id <-> manager_award.league_id
+[SchemaLinker] Detected implicit FK: fielding.league_id <-> manager_award_vote.league_id
+[SchemaLinker] Detected implicit FK: fielding.league_id <-> manager_half.league_id
+[SchemaLinker] Detected implicit FK: fielding_postseason.league_id <-> home_game.league_id
+[SchemaLinker] Detected implicit FK: fielding_postseason.league_id <-> manager.league_id
+[SchemaLinker] Detected implicit FK: fielding_postseason.league_id <-> manager_award.league_id
+[SchemaLinker] Detected implicit FK: fielding_postseason.league_id <-> manager_award_vote.league_id
+[SchemaLinker] Detected implicit FK: fielding_postseason.league_id <-> manager_half.league_id
+[SchemaLinker] Detected implicit FK: home_game.league_id <-> manager.league_id
+[SchemaLinker] Detected implicit FK: home_game.league_id <-> manager_award.league_id
+[SchemaLinker] Detected implicit FK: home_game.league_id <-> manager_award_vote.league_id
+[SchemaLinker] Detected implicit FK: home_game.league_id <-> manager_half.league_id
+[SchemaLinker] Detected implicit FK: manager.league_id <-> manager_award.league_id
+[SchemaLinker] Detected implicit FK: manager.league_id <-> manager_award_vote.league_id
+[SchemaLinker] Detected implicit FK: manager.league_id <-> manager_half.league_id
+[SchemaLinker] Detected implicit FK: manager_award.league_id <-> manager_award_vote.league_id
+[SchemaLinker] Detected implicit FK: manager_award.league_id <-> manager_half.league_id
+[SchemaLinker] Detected implicit FK: manager_award_vote.league_id <-> manager_half.league_id
+[SchemaLinker] Detected implicit FK: home_game.park_id <-> park.park_id
+[SchemaLinker] Detected implicit FK: manager_award.award_id <-> manager_award_vote.award_id
+[SchemaLinker Step 2] Graph expansion: 5 -> 14 tables
+[SchemaLinker Step 2] Candidate set: {'manager_half', 'all_star', 'home_game', 'batting', 'manager_award', 'fielding', 'batting_postseason', 'appearances', 'fielding_postseason', 'fielding_outfield', 'park', 'hall_of_fame', 'manager_award_vote', 'manager'}
+[SchemaLinker Step 3] LLM reranking: 14 -> 1 tables
+[SchemaLinker Step 3] Selected with columns: {'batting': ['player_id', 'g', 'r', 'h', 'hr']}
+[SchemaLinker] Linking complete. Selected 1 tables.
+
+  [MAS] Step 1 took 4.23s | Linked Schema length: 255 chars
+  [MAS] Step 2: Planning...
+  [MAS] Step 2 took 5.2s | Plan length: 2509 chars
+  [MAS] Step 3: SQL Generation...
+  [MAS] Step 3 took 5.15s | Generated SQL length: 800 chars
+  [MAS] Step 4: Validation & Correction...
+  [MAS] Step 4 took 5.98s | Final SQL: WITH MaxStats AS (
+    SELECT 
+        MAX(b.g) AS max_g,
+        MAX(b.r) AS max_r,
+        MAX(b.h...
+
+  [MAS] ===== TIMING SUMMARY =====
+  Knowledge Retrieval: 0.0s
+  Schema Linking: 4.23s
+  Planning:       5.2s
+  Generation:     5.15s
+  Validation:     5.98s
+  TOTAL:          20.56s
+  ============================
+
+  [Router] Analyzing: In which year were the two most common causes of traffic acc...
+  [Router] Classified as: HARD
+  [Multi] Processing HARD question...
+  [MAS] Processing: In which year were the two most common causes of traffic accidents different fro...
+  [MAS] Step 0: Domain Knowledge Retrieval...
+  [MAS] Step 0 took 0.0s | No domain knowledge found
+  [MAS] Step 1: Schema Linking...
+
+[SchemaLinker] Starting 3-step schema linking process...
+[SchemaLinker Step 1] Parsed 4 tables from schema
+[SchemaLinker Step 1] Table names: ['case_ids', 'collisions', 'parties', 'victims']...
+[SchemaLinker Step 1] Table count (4) <= top_k (5), returning all
+[SchemaLinker] Detected implicit FK: case_ids.case_id <-> collisions.case_id
+[SchemaLinker] Detected implicit FK: case_ids.case_id <-> parties.case_id
+[SchemaLinker] Detected implicit FK: case_ids.case_id <-> victims.case_id
+[SchemaLinker] Detected implicit FK: collisions.case_id <-> parties.case_id
+[SchemaLinker] Detected implicit FK: collisions.case_id <-> victims.case_id
+[SchemaLinker] Detected implicit FK: parties.case_id <-> victims.case_id
+[SchemaLinker] Detected implicit FK: parties.id <-> victims.id
+[SchemaLinker Step 2] Graph expansion: 4 -> 4 tables
+[SchemaLinker Step 2] Candidate set: {'case_ids', 'parties', 'collisions', 'victims'}
+[SchemaLinker Step 3] LLM reranking: 4 -> 2 tables
+[SchemaLinker Step 3] Selected with columns: {'case_ids': ['db_year'], 'parties': ['case_id', 'party_type']}
+[SchemaLinker] Linking complete. Selected 2 tables.
+
+  [MAS] Step 1 took 5.79s | Linked Schema length: 213 chars
+  [MAS] Step 2: Planning...
+  [MAS] Step 2 took 6.72s | Plan length: 3069 chars
+  [MAS] Step 3: SQL Generation...
+  [MAS] Step 3 took 4.99s | Generated SQL length: 929 chars
+  [MAS] Step 4: Validation & Correction...
+  [MAS] Step 4 took 8.6s | Final SQL: WITH yearly_cause_counts AS (
+    SELECT 
+        ci.db_year,
+        p.party_type,
+        COUNT(*)...
+
+  [MAS] ===== TIMING SUMMARY =====
+  Knowledge Retrieval: 0.0s
+  Schema Linking: 5.79s
+  Planning:       6.72s
+  Generation:     4.99s
+  Validation:     8.6s
+  TOTAL:          26.11s
+  ============================
+
+  [Router] Analyzing: For the NXT title that had the shortest match (excluding tit...
+  [Router] Classified as: MEDIUM
+  [Multi] Processing MEDIUM question...
+  [MAS] Processing: For the NXT title that had the shortest match (excluding titles with "title chan...
+  [MAS] Step 0: Domain Knowledge Retrieval...
+  [MAS] Step 0 took 0.0s | No domain knowledge found
+  [MAS] Step 1: Schema Linking...
+
+[SchemaLinker] Starting 3-step schema linking process...
+[SchemaLinker Step 1] Parsed 10 tables from schema
+[SchemaLinker Step 1] Table names: ['Belts', 'Cards', 'Events', 'Locations', 'Match_Types', 'Matches', 'Promotions', 'Tables', 'Wrestlers', 'sqlite_sequence']...
+[SchemaLinker Step 1] Question: For the NXT title that had the shortest match (excluding titles with "title change"), what were the ...
+[SchemaLinker Step 1] Sample table texts:
+  - Belts: Belts id, name...
+  - Cards: Cards id, table_id, location_id, promotion_id, event_date, event_id, url, info_h...
+  - Events: Events id, name...
+[SchemaLinker Step 1] TF-IDF matrix shape: (11, 38)
+[SchemaLinker Step 1] Similarities shape: (10,)
+[SchemaLinker Step 1] Similarity range: [0.0000, 0.2147]
+[SchemaLinker Step 1] Top 5 similarities: [np.float64(0.21466050664765465), np.float64(0.0), np.float64(0.0), np.float64(0.0), np.float64(0.0)]
+[SchemaLinker Step 1] Top 5 indices: [8 9 7 6 5]
+[SchemaLinker Step 1] Top 5 tables with scores:
+  - Wrestlers: 0.2147
+  - sqlite_sequence: 0.0000
+  - Tables: 0.0000
+  - Promotions: 0.0000
+  - Matches: 0.0000
+[SchemaLinker Step 1] Initial retrieval selected 5 tables: {'Tables', 'Matches', 'Promotions', 'Wrestlers', 'sqlite_sequence'}
+[SchemaLinker] Detected implicit FK: Belts.id <-> Cards.id
+[SchemaLinker] Detected implicit FK: Belts.id <-> Events.id
+[SchemaLinker] Detected implicit FK: Belts.id <-> Locations.id
+[SchemaLinker] Detected implicit FK: Belts.id <-> Match_Types.id
+[SchemaLinker] Detected implicit FK: Belts.id <-> Matches.id
+[SchemaLinker] Detected implicit FK: Belts.id <-> Promotions.id
+[SchemaLinker] Detected implicit FK: Belts.id <-> Tables.id
+[SchemaLinker] Detected implicit FK: Belts.id <-> Wrestlers.id
+[SchemaLinker] Detected implicit FK: Cards.id <-> Events.id
+[SchemaLinker] Detected implicit FK: Cards.id <-> Locations.id
+[SchemaLinker] Detected implicit FK: Cards.id <-> Match_Types.id
+[SchemaLinker] Detected implicit FK: Cards.id <-> Matches.id
+[SchemaLinker] Detected implicit FK: Cards.id <-> Promotions.id
+[SchemaLinker] Detected implicit FK: Cards.id <-> Tables.id
+[SchemaLinker] Detected implicit FK: Cards.id <-> Wrestlers.id
+[SchemaLinker] Detected implicit FK: Events.id <-> Locations.id
+[SchemaLinker] Detected implicit FK: Events.id <-> Match_Types.id
+[SchemaLinker] Detected implicit FK: Events.id <-> Matches.id
+[SchemaLinker] Detected implicit FK: Events.id <-> Promotions.idProcessing:  70%|███████   | 7/10 [03:15<01:16, 25.42s/it]
+[SchemaLinker] Detected implicit FK: Events.id <-> Tables.id
+[SchemaLinker] Detected implicit FK: Events.id <-> Wrestlers.id
+[SchemaLinker] Detected implicit FK: Locations.id <-> Match_Types.id
+[SchemaLinker] Detected implicit FK: Locations.id <-> Matches.id
+[SchemaLinker] Detected implicit FK: Locations.id <-> Promotions.id
+[SchemaLinker] Detected implicit FK: Locations.id <-> Tables.id
+[SchemaLinker] Detected implicit FK: Locations.id <-> Wrestlers.id
+[SchemaLinker] Detected implicit FK: Match_Types.id <-> Matches.id
+[SchemaLinker] Detected implicit FK: Match_Types.id <-> Promotions.id
+[SchemaLinker] Detected implicit FK: Match_Types.id <-> Tables.id
+[SchemaLinker] Detected implicit FK: Match_Types.id <-> Wrestlers.id
+[SchemaLinker] Detected implicit FK: Matches.id <-> Promotions.id
+[SchemaLinker] Detected implicit FK: Matches.id <-> Tables.id
+[SchemaLinker] Detected implicit FK: Matches.id <-> Wrestlers.id
+[SchemaLinker] Detected implicit FK: Promotions.id <-> Tables.id
+[SchemaLinker] Detected implicit FK: Promotions.id <-> Wrestlers.id
+[SchemaLinker] Detected implicit FK: Tables.id <-> Wrestlers.id
+[SchemaLinker Step 2] Graph expansion: 5 -> 10 tables
+[SchemaLinker Step 2] Candidate set: {'Matches', 'Match_Types', 'Locations', 'Wrestlers', 'sqlite_sequence', 'Tables', 'Cards', 'Belts', 'Events', 'Promotions'}
+[SchemaLinker Step 3] LLM reranking: 10 -> 3 tables
+[SchemaLinker Step 3] Selected with columns: {'Matches': ['winner_id', 'loser_id', 'duration', 'title_id', 'title_change'], 'Wrestlers': ['id', 'name'], 'Belts': ['id', 'name']}
+[SchemaLinker] Linking complete. Selected 3 tables.
+
+  [MAS] Step 1 took 4.05s | Linked Schema length: 313 chars
+  [MAS] Step 2: Planning...
+  [MAS] Step 2 took 5.21s | Plan length: 2621 chars
+  [MAS] Step 3: SQL Generation...
+  [MAS] Step 3 took 3.84s | Generated SQL length: 598 chars
+  [MAS] Step 4: Validation & Correction...
+  [MAS] Step 4 took 1.92s | Final SQL: WITH NXTMatches AS (
+    SELECT m.winner_id, m.loser_id, m.duration, 
+           b.name AS belt_name...
+
+  [MAS] ===== TIMING SUMMARY =====
+  Knowledge Retrieval: 0.0s
+  Schema Linking: 4.05s
+  Planning:       5.21s
+  Generation:     3.84s
+  Validation:     1.92s
+  TOTAL:          15.02s
+  ============================
+
+  [Router] Analyzing: Retrieve the names of players who scored no less than 100 ru...
+  [Router] Classified as: MEDIUM
+  [Multi] Processing MEDIUM question...
+  [MAS] Processing: Retrieve the names of players who scored no less than 100 runs in a match while ...
+  [MAS] Step 0: Domain Knowledge Retrieval...
+  [MAS] Step 0 took 0.0s | No domain knowledge found
+  [MAS] Step 1: Schema Linking...
+
+[SchemaLinker] Starting 3-step schema linking process...
+[SchemaLinker Step 1] Parsed 8 tables from schema
+[SchemaLinker Step 1] Table names: ['ball_by_ball', 'batsman_scored', 'extra_runs', 'match', 'player', 'player_match', 'team', 'wicket_taken']...
+[SchemaLinker Step 1] Question: Retrieve the names of players who scored no less than 100 runs in a match while playing for the team...
+[SchemaLinker Step 1] Sample table texts:
+  - ball_by_ball: ball_by_ball match_id, over_id, ball_id, innings_no, team_batting, team_bowling,...
+  - batsman_scored: batsman_scored match_id, over_id, ball_id, runs_scored, innings_no...
+  - extra_runs: extra_runs match_id, over_id, ball_id, extra_type, extra_runs, innings_no...
+[SchemaLinker Step 1] TF-IDF matrix shape: (9, 50)
+[SchemaLinker Step 1] Similarities shape: (8,)
+[SchemaLinker Step 1] Similarity range: [0.0000, 0.1756]
+[SchemaLinker Step 1] Top 5 similarities: [np.float64(0.17560470405695427), np.float64(0.11642371299549333), np.float64(0.0), np.float64(0.0), np.float64(0.0)]
+[SchemaLinker Step 1] Top 5 indices: [6 3 7 5 4]
+[SchemaLinker Step 1] Top 5 tables with scores:
+  - team: 0.1756
+  - match: 0.1164
+  - wicket_taken: 0.0000
+  - player_match: 0.0000
+  - player: 0.0000
+[SchemaLinker Step 1] Initial retrieval selected 5 tables: {'match', 'team', 'wicket_taken', 'player', 'player_match'}
+[SchemaLinker] Detected implicit FK: ball_by_ball.match_id <-> batsman_scored.match_id
+[SchemaLinker] Detected implicit FK: ball_by_ball.match_id <-> extra_runs.match_id
+[SchemaLinker] Detected implicit FK: ball_by_ball.match_id <-> match.match_id
+[SchemaLinker] Detected implicit FK: ball_by_ball.match_id <-> player_match.match_id
+[SchemaLinker] Detected implicit FK: ball_by_ball.match_id <-> wicket_taken.match_id
+[SchemaLinker] Detected implicit FK: batsman_scored.match_id <-> extra_runs.match_id
+[SchemaLinker] Detected implicit FK: batsman_scored.match_id <-> match.match_id
+[SchemaLinker] Detected implicit FK: batsman_scored.match_id <-> player_match.match_id
+[SchemaLinker] Detected implicit FK: batsman_scored.match_id <-> wicket_taken.match_id
+[SchemaLinker] Detected implicit FK: extra_runs.match_id <-> match.match_id
+[SchemaLinker] Detected implicit FK: extra_runs.match_id <-> player_match.match_id
+[SchemaLinker] Detected implicit FK: extra_runs.match_id <-> wicket_taken.match_id
+[SchemaLinker] Detected implicit FK: match.match_id <-> player_match.match_id
+[SchemaLinker] Detected implicit FK: match.match_id <-> wicket_taken.match_id
+[SchemaLinker] Detected implicit FK: player_match.match_id <-> wicket_taken.match_id
+[SchemaLinker] Detected implicit FK: ball_by_ball.over_id <-> batsman_scored.over_id
+[SchemaLinker] Detected implicit FK: ball_by_ball.over_id <-> extra_runs.over_id
+[SchemaLinker] Detected implicit FK: ball_by_ball.over_id <-> wicket_taken.over_id
+[SchemaLinker] Detected implicit FK: batsman_scored.over_id <-> extra_runs.over_id
+[SchemaLinker] Detected implicit FK: batsman_scored.over_id <-> wicket_taken.over_id
+[SchemaLinker] Detected implicit FK: extra_runs.over_id <-> wicket_taken.over_id
+[SchemaLinker] Detected implicit FK: ball_by_ball.ball_id <-> batsman_scored.ball_id
+[SchemaLinker] Detected implicit FK: ball_by_ball.ball_id <-> extra_runs.ball_id
+[SchemaLinker] Detected implicit FK: ball_by_ball.ball_id <-> wicket_taken.ball_id
+[SchemaLinker] Detected implicit FK: batsman_scored.ball_id <-> extra_runs.ball_id
+[SchemaLinker] Detected implicit FK: batsman_scored.ball_id <-> wicket_taken.ball_id
+[SchemaLinker] Detected implicit FK: extra_runs.ball_id <-> wicket_taken.ball_id
+[SchemaLinker] Detected implicit FK: player.player_id <-> player_match.player_id
+[SchemaLinker] Detected implicit FK: player_match.team_id <-> team.team_id
+[SchemaLinker Step 2] Graph expansion: 5 -> 8 tables
+[SchemaLinker Step 2] Candidate set: {'player_match', 'ball_by_ball', 'batsman_scored', 'wicket_taken', 'player', 'extra_runs', 'match', 'team'}
+[SchemaLinker Step 3] LLM reranking: 8 -> 4 tables
+[SchemaLinker Step 3] Selected with columns: {'match': ['match_id', 'team_1', 'team_2'], 'player_match': ['match_id', 'player_id', 'team_id'], 'player': ['player_id', 'player_name'], 'batsman_scored': ['match_id', 'runs_scored', 'innings_no']}
+[SchemaLinker] Linking complete. Selected 4 tables.
+
+  [MAS] Step 1 took 4.33s | Linked Schema length: 371 chars
+  [MAS] Step 2: Planning...
+  [MAS] Step 2 took 5.52s | Plan length: 2340 chars
+  [MAS] Step 3: SQL Generation...
+  [MAS] Step 3 took 4.29s | Generated SQL length: 740 chars
+  [MAS] Step 4: Validation & Correction...
+  [MAS] Step 4 took 6.85s | Final SQL: WITH MatchResults AS (
+    SELECT m.match_id,
+           CASE 
+               WHEN m.match_winner = ...
+
+  [MAS] ===== TIMING SUMMARY =====
+  Knowledge Retrieval: 0.0s
+  Schema Linking: 4.33s
+  Planning:       5.52s
+  Generation:     4.29s
+  Validation:     6.85s
+  TOTAL:          21.0s
+  ============================
+
+  [Router] Analyzing: Please help me find the names of top 5 players with the high...
+  [Router] Classified as: HARD
+  [Multi] Processing HARD question...
+  [MAS] Processing: Please help me find the names of top 5 players with the highest average runs per...
+  [MAS] Step 0: Domain Knowledge Retrieval...
+  [MAS] Step 0 took 0.0s | No domain knowledge found
+  [MAS] Step 1: Schema Linking...
+
+[SchemaLinker] Starting 3-step schema linking process...
+[SchemaLinker Step 1] Parsed 8 tables from schema
+[SchemaLinker Step 1] Table names: ['ball_by_ball', 'batsman_scored', 'extra_runs', 'match', 'player', 'player_match', 'team', 'wicket_taken']...Processing:  80%|████████  | 8/10 [03:34<00:46, 23.43s/it]Processing:  90%|█████████ | 9/10 [03:56<00:23, 23.04s/it]
+[SchemaLinker Step 1] Question: Please help me find the names of top 5 players with the highest average runs per match in season 5, ...
+[SchemaLinker Step 1] Sample table texts:
+  - ball_by_ball: ball_by_ball match_id, over_id, ball_id, innings_no, team_batting, team_bowling,...
+  - batsman_scored: batsman_scored match_id, over_id, ball_id, runs_scored, innings_no...
+  - extra_runs: extra_runs match_id, over_id, ball_id, extra_type, extra_runs, innings_no...
+[SchemaLinker Step 1] TF-IDF matrix shape: (9, 51)
+[SchemaLinker Step 1] Similarities shape: (8,)
+[SchemaLinker Step 1] Similarity range: [0.0000, 0.0635]
+[SchemaLinker Step 1] Top 5 similarities: [np.float64(0.06352350730978584), np.float64(0.0), np.float64(0.0), np.float64(0.0), np.float64(0.0)]
+[SchemaLinker Step 1] Top 5 indices: [3 7 6 5 4]
+[SchemaLinker Step 1] Top 5 tables with scores:
+  - match: 0.0635
+  - wicket_taken: 0.0000
+  - team: 0.0000
+  - player_match: 0.0000
+  - player: 0.0000
+[SchemaLinker Step 1] Initial retrieval selected 5 tables: {'match', 'team', 'wicket_taken', 'player', 'player_match'}
+[SchemaLinker] Detected implicit FK: ball_by_ball.match_id <-> batsman_scored.match_id
+[SchemaLinker] Detected implicit FK: ball_by_ball.match_id <-> extra_runs.match_id
+[SchemaLinker] Detected implicit FK: ball_by_ball.match_id <-> match.match_id
+[SchemaLinker] Detected implicit FK: ball_by_ball.match_id <-> player_match.match_id
+[SchemaLinker] Detected implicit FK: ball_by_ball.match_id <-> wicket_taken.match_id
+[SchemaLinker] Detected implicit FK: batsman_scored.match_id <-> extra_runs.match_id
+[SchemaLinker] Detected implicit FK: batsman_scored.match_id <-> match.match_id
+[SchemaLinker] Detected implicit FK: batsman_scored.match_id <-> player_match.match_id
+[SchemaLinker] Detected implicit FK: batsman_scored.match_id <-> wicket_taken.match_id
+[SchemaLinker] Detected implicit FK: extra_runs.match_id <-> match.match_id
+[SchemaLinker] Detected implicit FK: extra_runs.match_id <-> player_match.match_id
+[SchemaLinker] Detected implicit FK: extra_runs.match_id <-> wicket_taken.match_id
+[SchemaLinker] Detected implicit FK: match.match_id <-> player_match.match_id
+[SchemaLinker] Detected implicit FK: match.match_id <-> wicket_taken.match_id
+[SchemaLinker] Detected implicit FK: player_match.match_id <-> wicket_taken.match_id
+[SchemaLinker] Detected implicit FK: ball_by_ball.over_id <-> batsman_scored.over_id
+[SchemaLinker] Detected implicit FK: ball_by_ball.over_id <-> extra_runs.over_id
+[SchemaLinker] Detected implicit FK: ball_by_ball.over_id <-> wicket_taken.over_id
+[SchemaLinker] Detected implicit FK: batsman_scored.over_id <-> extra_runs.over_id
+[SchemaLinker] Detected implicit FK: batsman_scored.over_id <-> wicket_taken.over_id
+[SchemaLinker] Detected implicit FK: extra_runs.over_id <-> wicket_taken.over_id
+[SchemaLinker] Detected implicit FK: ball_by_ball.ball_id <-> batsman_scored.ball_id
+[SchemaLinker] Detected implicit FK: ball_by_ball.ball_id <-> extra_runs.ball_id
+[SchemaLinker] Detected implicit FK: ball_by_ball.ball_id <-> wicket_taken.ball_id
+[SchemaLinker] Detected implicit FK: batsman_scored.ball_id <-> extra_runs.ball_id
+[SchemaLinker] Detected implicit FK: batsman_scored.ball_id <-> wicket_taken.ball_id
+[SchemaLinker] Detected implicit FK: extra_runs.ball_id <-> wicket_taken.ball_id
+[SchemaLinker] Detected implicit FK: player.player_id <-> player_match.player_id
+[SchemaLinker] Detected implicit FK: player_match.team_id <-> team.team_id
+[SchemaLinker Step 2] Graph expansion: 5 -> 8 tables
+[SchemaLinker Step 2] Candidate set: {'player_match', 'ball_by_ball', 'batsman_scored', 'wicket_taken', 'player', 'extra_runs', 'match', 'team'}
+[SchemaLinker Step 3] LLM reranking: 8 -> 5 tables
+[SchemaLinker Step 3] Selected with columns: {'match': ['match_id', 'season_id'], 'player_match': ['match_id', 'player_id', 'team_id'], 'player': ['player_id', 'player_name'], 'batsman_scored': ['match_id', 'runs_scored'], 'ball_by_ball': ['match_id', 'striker']}
+[SchemaLinker] Linking complete. Selected 5 tables.
+
+  [MAS] Step 1 took 5.43s | Linked Schema length: 413 chars
+  [MAS] Step 2: Planning...
+  [MAS] Step 2 took 6.65s | Plan length: 3271 chars
+  [MAS] Step 3: SQL Generation...
+  [MAS] Step 3 took 6.25s | Generated SQL length: 1114 chars
+  [MAS] Step 4: Validation & Correction...
+  [MAS] Step 4 took 5.52s | Final SQL: WITH season_matches AS (
+    SELECT m.match_id
+    FROM match AS m
+    WHERE m.season_id = 5
+),
+play...
+
+  [MAS] ===== TIMING SUMMARY =====
+  Knowledge Retrieval: 0.0s
+  Schema Linking: 5.43s
+  Planning:       6.65s
+  Generation:     6.25s
+  Validation:     5.52s
+  TOTAL:          23.86s
+  ============================
+
+  [Router] Analyzing: Please identify the top three customers, based on their cust...
+  [Router] Classified as: HARD
+  [Multi] Processing HARD question...
+  [MAS] Processing: Please identify the top three customers, based on their customer_unique_id, who ...
+  [MAS] Step 0: Domain Knowledge Retrieval...
+  [MAS] Step 0 took 0.0s | No domain knowledge found
+  [MAS] Step 1: Schema Linking...
+
+[SchemaLinker] Starting 3-step schema linking process...
+[SchemaLinker Step 1] Parsed 10 tables from schema
+[SchemaLinker Step 1] Table names: ['olist_customers', 'olist_geolocation', 'olist_order_items', 'olist_order_payments', 'olist_order_reviews', 'olist_orders', 'olist_products', 'olist_products_dataset', 'olist_sellers', 'product_category_name_translation']...
+[SchemaLinker Step 1] Question: Please identify the top three customers, based on their customer_unique_id, who have the highest num...
+[SchemaLinker Step 1] Sample table texts:
+  - olist_customers: olist_customers customer_id, customer_unique_id, customer_zip_code_prefix, custo...
+  - olist_geolocation: olist_geolocation geolocation_zip_code_prefix, geolocation_lat, geolocation_lng,...
+  - olist_order_items: olist_order_items order_id, order_item_id, product_id, seller_id, shipping_limit...
+[SchemaLinker Step 1] TF-IDF matrix shape: (11, 69)
+[SchemaLinker Step 1] Similarities shape: (10,)
+[SchemaLinker Step 1] Similarity range: [0.0000, 0.0764]
+[SchemaLinker Step 1] Top 5 similarities: [np.float64(0.07643465523749135), np.float64(0.0), np.float64(0.0), np.float64(0.0), np.float64(0.0)]
+[SchemaLinker Step 1] Top 5 indices: [0 9 8 7 6]
+[SchemaLinker Step 1] Top 5 tables with scores:
+  - olist_customers: 0.0764
+  - product_category_name_translation: 0.0000
+  - olist_sellers: 0.0000
+  - olist_products_dataset: 0.0000
+  - olist_products: 0.0000
+[SchemaLinker Step 1] Initial retrieval selected 5 tables: {'olist_products_dataset', 'product_category_name_translation', 'olist_customers', 'olist_products', 'olist_sellers'}
+[SchemaLinker] Detected implicit FK: olist_customers.customer_id <-> olist_orders.customer_id
+[SchemaLinker] Detected implicit FK: olist_order_items.order_id <-> olist_order_payments.order_id
+[SchemaLinker] Detected implicit FK: olist_order_items.order_id <-> olist_order_reviews.order_id
+[SchemaLinker] Detected implicit FK: olist_order_items.order_id <-> olist_orders.order_id
+[SchemaLinker] Detected implicit FK: olist_order_payments.order_id <-> olist_order_reviews.order_id
+[SchemaLinker] Detected implicit FK: olist_order_payments.order_id <-> olist_orders.order_id
+[SchemaLinker] Detected implicit FK: olist_order_reviews.order_id <-> olist_orders.order_id
+[SchemaLinker] Detected implicit FK: olist_order_items.product_id <-> olist_products.product_id
+[SchemaLinker] Detected implicit FK: olist_order_items.product_id <-> olist_products_dataset.product_id
+[SchemaLinker] Detected implicit FK: olist_products.product_id <-> olist_products_dataset.product_id
+[SchemaLinker] Detected implicit FK: olist_order_items.seller_id <-> olist_sellers.seller_id
+[SchemaLinker Step 2] Graph expansion: 5 -> 7 tables
+[SchemaLinker Step 2] Candidate set: {'olist_products', 'olist_products_dataset', 'olist_customers', 'product_category_name_translation', 'olist_order_items', 'olist_orders', 'olist_sellers'}
+[SchemaLinker Step 3] LLM reranking: 7 -> 3 tables
+[SchemaLinker Step 3] Selected with columns: {'olist_customers': ['customer_unique_id', 'customer_city', 'customer_state'], 'olist_orders': ['customer_id', 'order_status'], 'olist_order_items': ['order_id', 'price']}Processing: 100%|██████████| 10/10 [04:17<00:00, 22.30s/it]Processing: 100%|██████████| 10/10 [04:17<00:00, 25.73s/it]
+
+[SchemaLinker] Linking complete. Selected 3 tables.
+
+  [MAS] Step 1 took 4.16s | Linked Schema length: 428 chars
+  [MAS] Step 2: Planning...
+  [MAS] Step 2 took 5.14s | Plan length: 2589 chars
+  [MAS] Step 3: SQL Generation...
+  [MAS] Step 3 took 4.48s | Generated SQL length: 941 chars
+  [MAS] Step 4: Validation & Correction...
+  [MAS] Step 4 took 2.57s | Final SQL: WITH CustomerOrderCounts AS (
+    SELECT 
+        c.customer_unique_id,
+        c.customer_city,
+   ...
+
+  [MAS] ===== TIMING SUMMARY =====
+  Knowledge Retrieval: 0.0s
+  Schema Linking: 4.16s
+  Planning:       5.14s
+  Generation:     4.48s
+  Validation:     2.57s
+  TOTAL:          16.35s
+  ============================
+
+  [Router] Analyzing: Could you help me determine which actor starred most frequen...
+  [Router] Classified as: HARD
+  [Multi] Processing HARD question...
+  [MAS] Processing: Could you help me determine which actor starred most frequently in English-langu...
+  [MAS] Step 0: Domain Knowledge Retrieval...
+  [MAS] Step 0 took 0.0s | No domain knowledge found
+  [MAS] Step 1: Schema Linking...
+
+[SchemaLinker] Starting 3-step schema linking process...
+[SchemaLinker Step 1] Parsed 15 tables from schema
+[SchemaLinker Step 1] Table names: ['actor', 'address', 'category', 'city', 'country', 'customer', 'film', 'film_actor', 'film_category', 'film_text']...
+[SchemaLinker Step 1] Question: Could you help me determine which actor starred most frequently in English-language children's categ...
+[SchemaLinker Step 1] Sample table texts:
+  - actor: actor actor_id, first_name, last_name, last_update...
+  - address: address address_id, address, address2, district, city_id, postal_code, phone, la...
+  - category: category category_id, name, last_update...
+[SchemaLinker Step 1] TF-IDF matrix shape: (16, 71)
+[SchemaLinker Step 1] Similarities shape: (15,)
+[SchemaLinker Step 1] Similarity range: [0.0000, 0.1932]
+[SchemaLinker Step 1] Top 5 similarities: [np.float64(0.1932188565555477), np.float64(0.12736994899255555), np.float64(0.12736994899255555), np.float64(0.0), np.float64(0.0)]
+[SchemaLinker Step 1] Top 5 indices: [ 0 11  2 14 13]
+[SchemaLinker Step 1] Top 5 tables with scores:
+  - actor: 0.1932
+  - language: 0.1274
+  - category: 0.1274
+  - staff: 0.0000
+  - rental: 0.0000
+[SchemaLinker Step 1] Initial retrieval selected 5 tables: {'rental', 'language', 'staff', 'category', 'actor'}
+[SchemaLinker] Detected implicit FK: actor.actor_id <-> film_actor.actor_id
+[SchemaLinker] Detected implicit FK: address.address_id <-> customer.address_id
+[SchemaLinker] Detected implicit FK: address.address_id <-> staff.address_id
+[SchemaLinker] Detected implicit FK: customer.address_id <-> staff.address_id
+[SchemaLinker] Detected implicit FK: address.city_id <-> city.city_id
+[SchemaLinker] Detected implicit FK: category.category_id <-> film_category.category_id
+[SchemaLinker] Detected implicit FK: city.country_id <-> country.country_id
+[SchemaLinker] Detected implicit FK: customer.customer_id <-> payment.customer_id
+[SchemaLinker] Detected implicit FK: customer.customer_id <-> rental.customer_id
+[SchemaLinker] Detected implicit FK: payment.customer_id <-> rental.customer_id
+[SchemaLinker] Detected implicit FK: customer.store_id <-> inventory.store_id
+[SchemaLinker] Detected implicit FK: customer.store_id <-> staff.store_id
+[SchemaLinker] Detected implicit FK: inventory.store_id <-> staff.store_id
+[SchemaLinker] Detected implicit FK: film.film_id <-> film_actor.film_id
+[SchemaLinker] Detected implicit FK: film.film_id <-> film_category.film_id
+[SchemaLinker] Detected implicit FK: film.film_id <-> film_text.film_id
+[SchemaLinker] Detected implicit FK: film.film_id <-> inventory.film_id
+[SchemaLinker] Detected implicit FK: film_actor.film_id <-> film_category.film_id
+[SchemaLinker] Detected implicit FK: film_actor.film_id <-> film_text.film_id
+[SchemaLinker] Detected implicit FK: film_actor.film_id <-> inventory.film_id
+[SchemaLinker] Detected implicit FK: film_category.film_id <-> film_text.film_id
+[SchemaLinker] Detected implicit FK: film_category.film_id <-> inventory.film_id
+[SchemaLinker] Detected implicit FK: film_text.film_id <-> inventory.film_id
+[SchemaLinker] Detected implicit FK: film.language_id <-> language.language_id
+[SchemaLinker] Detected implicit FK: inventory.inventory_id <-> rental.inventory_id
+[SchemaLinker] Detected implicit FK: payment.staff_id <-> rental.staff_id
+[SchemaLinker] Detected implicit FK: payment.staff_id <-> staff.staff_id
+[SchemaLinker] Detected implicit FK: rental.staff_id <-> staff.staff_id
+[SchemaLinker] Detected implicit FK: payment.rental_id <-> rental.rental_id
+[SchemaLinker Step 2] Graph expansion: 5 -> 12 tables
+[SchemaLinker Step 2] Candidate set: {'rental', 'language', 'film', 'category', 'film_category', 'staff', 'payment', 'inventory', 'actor', 'customer', 'film_actor', 'address'}
+[SchemaLinker Step 3] LLM reranking: 12 -> 6 tables
+[SchemaLinker Step 3] Selected with columns: {'film': ['title', 'release_year', 'language_id', 'rental_duration'], 'language': ['language_id', 'name'], 'film_category': ['film_id', 'category_id'], 'category': ['category_id', 'name'], 'film_actor': ['film_id', 'actor_id'], 'actor': ['actor_id', 'first_name', 'last_name']}
+[SchemaLinker] Linking complete. Selected 6 tables.
+
+  [MAS] Step 1 took 4.58s | Linked Schema length: 603 chars
+  [MAS] Step 2: Planning...
+  [MAS] Step 2 took 6.57s | Plan length: 3001 chars
+  [MAS] Step 3: SQL Generation...
+  [MAS] Step 3 took 5.53s | Generated SQL length: 1049 chars
+  [MAS] Step 4: Validation & Correction...
+  [MAS] Step 4 took 2.84s | Final SQL: WITH FilteredFilms AS (
+    SELECT DISTINCT a.actor_id, a.first_name, a.last_name, f.film_id
+    FRO...
+
+  [MAS] ===== TIMING SUMMARY =====
+  Knowledge Retrieval: 0.0s
+  Schema Linking: 4.58s
+  Planning:       6.57s
+  Generation:     5.53s
+  Validation:     2.84s
+  TOTAL:          19.52s
+  ============================
+
+  [Router] Analyzing: Please help me find the film category with the highest total...
+  [Router] Classified as: HARD
+  [Multi] Processing HARD question...
+  [MAS] Processing: Please help me find the film category with the highest total rental hours in cit...
+  [MAS] Step 0: Domain Knowledge Retrieval...
+  [MAS] Step 0 took 0.0s | No domain knowledge found
+  [MAS] Step 1: Schema Linking...
+
+[SchemaLinker] Starting 3-step schema linking process...
+[SchemaLinker Step 1] Parsed 15 tables from schema
+[SchemaLinker Step 1] Table names: ['actor', 'address', 'category', 'city', 'country', 'customer', 'film', 'film_actor', 'film_category', 'film_text']...
+[SchemaLinker Step 1] Question: Please help me find the film category with the highest total rental hours in cities where the city's...
+[SchemaLinker Step 1] Sample table texts:
+  - actor: actor actor_id, first_name, last_name, last_update...
+  - address: address address_id, address, address2, district, city_id, postal_code, phone, la...
+  - category: category category_id, name, last_update...
+[SchemaLinker Step 1] TF-IDF matrix shape: (16, 62)
+[SchemaLinker Step 1] Similarities shape: (15,)
+[SchemaLinker Step 1] Similarity range: [0.0000, 0.2111]
+[SchemaLinker Step 1] Top 5 similarities: [np.float64(0.21110919420936436), np.float64(0.17800640986695385), np.float64(0.09632825440721686), np.float64(0.06708211357751283), np.float64(0.0)]
+[SchemaLinker Step 1] Top 5 indices: [ 3  2 13  6 14]
+[SchemaLinker Step 1] Top 5 tables with scores:
+  - city: 0.2111
+  - category: 0.1780
+  - rental: 0.0963
+  - film: 0.0671
+  - staff: 0.0000
+[SchemaLinker Step 1] Initial retrieval selected 5 tables: {'rental', 'staff', 'film', 'city', 'category'}
+[SchemaLinker] Detected implicit FK: actor.actor_id <-> film_actor.actor_id
+[SchemaLinker] Detected implicit FK: address.address_id <-> customer.address_id
+[SchemaLinker] Detected implicit FK: address.address_id <-> staff.address_id
+[SchemaLinker] Detected implicit FK: customer.address_id <-> staff.address_id
+[SchemaLinker] Detected implicit FK: address.city_id <-> city.city_id
+[SchemaLinker] Detected implicit FK: category.category_id <-> film_category.category_id
+[SchemaLinker] Detected implicit FK: city.country_id <-> country.country_id
+[SchemaLinker] Detected implicit FK: customer.customer_id <-> payment.customer_id
+[SchemaLinker] Detected implicit FK: customer.customer_id <-> rental.customer_id
+[SchemaLinker] Detected implicit FK: payment.customer_id <-> rental.customer_id
+[SchemaLinker] Detected implicit FK: customer.store_id <-> inventory.store_id
+[SchemaLinker] Detected implicit FK: customer.store_id <-> staff.store_id
+[SchemaLinker] Detected implicit FK: inventory.store_id <-> staff.store_id
+[SchemaLinker] Detected implicit FK: film.film_id <-> film_actor.film_id
+[SchemaLinker] Detected implicit FK: film.film_id <-> film_category.film_id
+[SchemaLinker] Detected implicit FK: film.film_id <-> film_text.film_id
+[SchemaLinker] Detected implicit FK: film.film_id <-> inventory.film_id
+[SchemaLinker] Detected implicit FK: film_actor.film_id <-> film_category.film_id
+[SchemaLinker] Detected implicit FK: film_actor.film_id <-> film_text.film_id
+[SchemaLinker] Detected implicit FK: film_actor.film_id <-> inventory.film_id
+[SchemaLinker] Detected implicit FK: film_category.film_id <-> film_text.film_id
+[SchemaLinker] Detected implicit FK: film_category.film_id <-> inventory.film_id
+[SchemaLinker] Detected implicit FK: film_text.film_id <-> inventory.film_id
+[SchemaLinker] Detected implicit FK: film.language_id <-> language.language_id
+[SchemaLinker] Detected implicit FK: inventory.inventory_id <-> rental.inventory_id
+[SchemaLinker] Detected implicit FK: payment.staff_id <-> rental.staff_id
+[SchemaLinker] Detected implicit FK: payment.staff_id <-> staff.staff_id
+[SchemaLinker] Detected implicit FK: rental.staff_id <-> staff.staff_id
+[SchemaLinker] Detected implicit FK: payment.rental_id <-> rental.rental_id
+[SchemaLinker Step 2] Graph expansion: 5 -> 14 tables
+[SchemaLinker Step 2] Candidate set: {'rental', 'language', 'film', 'category', 'film_category', 'country', 'staff', 'city', 'payment', 'film_text', 'inventory', 'customer', 'film_actor', 'address'}
+[SchemaLinker Step 3] LLM reranking: 14 -> 8 tables
+[SchemaLinker Step 3] Selected with columns: {'rental': ['rental_date', 'return_date', 'inventory_id'], 'film': ['film_id', 'rental_duration'], 'inventory': ['inventory_id', 'film_id'], 'film_category': ['film_id', 'category_id'], 'category': ['category_id', 'name'], 'city': ['city_id', 'city'], 'address': ['address_id', 'city_id'], 'customer': ['customer_id', 'address_id']}
+[SchemaLinker] Linking complete. Selected 8 tables.
+
+  [MAS] Step 1 took 5.67s | Linked Schema length: 562 chars
+  [MAS] Step 2: Planning...
+  [MAS] Step 2 took 6.52s | Plan length: 3431 chars
+  [MAS] Step 3: SQL Generation...
+  [MAS] Step 3 took 5.32s | Generated SQL length: 1035 chars
+  [MAS] Step 4: Validation & Correction...
+  [MAS] Step 4 took 2.43s | Final SQL: WITH FilteredCities AS (
+    SELECT c.city_id
+    FROM city AS c
+    WHERE c.city LIKE 'A%' OR c.cit...
+
+  [MAS] ===== TIMING SUMMARY =====
+  Knowledge Retrieval: 0.0s
+  Schema Linking: 5.67s
+  Planning:       6.52s
+  Generation:     5.32s
+  Validation:     2.43s
+  TOTAL:          19.94s
+  ============================
+
+
+Progress: 10/10
+  Success: 10, Failed: 0
+  Routing: {'EASY': 0, 'MEDIUM': 2, 'HARD': 8}
+  Single: 0, Multi: 10
+
+============================================================
+Benchmark Complete!
+============================================================
+Total processed: 10
+Success: 10 (100.0%)
+Failed: 0 (0.0%)
+
+Routing Distribution:
+  EASY: 0
+  MEDIUM: 2
+  HARD: 8
+
+Agent Usage:
+  Single Agent: 0
+  Multi-Agent: 10
+
+Results saved to: /Users/Krizpham/Thac si/Spider2_MultiAgent_Research/experiments/benchmark/adaptive_results_20251124_225249.jsonl
+
+============================================================
+Running Automatic Evaluation
+============================================================
+
+Running Evaluation on /Users/Krizpham/Thac si/Spider2_MultiAgent_Research/experiments/benchmark/adaptive_results_20251124_225249.jsonl...
+Evaluating:   0%|          | 0/10 [00:00<?, ?it/s]Evaluating:   0%|          | 0/10 [00:00<?, ?it/s]
+Traceback (most recent call last):
+  File "/Users/Krizpham/Thac si/Spider2_MultiAgent_Research/src/benchmark.py", line 398, in <module>
+    run_benchmark(mode=args.mode, max_items=args.max_items, db_id=args.db_id,
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                 random_n=args.random, auto_select_db=args.auto_select_db,
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                 run_eval=not args.no_eval)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/Krizpham/Thac si/Spider2_MultiAgent_Research/src/benchmark.py", line 375, in run_benchmark
+    evaluate_results(str(output_file))
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/Users/Krizpham/Thac si/Spider2_MultiAgent_Research/src/evaluate.py", line 282, in evaluate_results
+    details.append({
+    ^^^^^^^^^^^^^^
+AttributeError: 'dict' object has no attribute 'append'

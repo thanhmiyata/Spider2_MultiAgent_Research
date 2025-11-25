@@ -5,11 +5,25 @@ from langchain_core.prompts import PromptTemplate
 
 from config import DEFAULT_MODEL, GEMINI_MODEL, get_llm, extract_content
 
-# SQL keywords to filter out when extracting table names
+# SQL keywords and common English words to filter out when extracting table names
 SQL_KEYWORDS = {
     'table', 'tables', 'from', 'join', 'where', 'select', 
     'group', 'order', 'having', 'inner', 'left', 'right', 
     'outer', 'cross', 'natural'
+}
+
+# Common English words that appear in plans but are not table names
+STOP_WORDS = {
+    'the', 'a', 'an', 'is', 'to', 'from', 'for', 'with', 'common', 
+    'expression', 'table', 'tables', 'column', 'columns', 'data',
+    'using', 'based', 'on', 'in', 'of', 'and', 'or', 'not',
+    'this', 'that', 'these', 'those', 'will', 'should', 'can',
+    'use', 'used', 'create', 'select', 'where', 'join', 'group',
+    'order', 'by', 'having', 'limit', 'offset', 'distinct',
+    'clauses', 'clause', 'expression', 'expressions', 'common',
+    'cte', 'ctes', 'subquery', 'subqueries', 'query', 'queries',
+    'sql', 'database', 'schema', 'row', 'rows', 'value', 'values',
+    'result', 'results', 'set', 'sets', 'list', 'lists'
 }
 
 # Preview constants for output formatting
@@ -23,7 +37,7 @@ class MissingTableError(Exception):
 
 
 class Planner:
-    def __init__(self, model_name=GEMINI_MODEL, max_retries=2, enable_schema_validation=True):
+    def __init__(self, model_name=GEMINI_MODEL, max_retries=2, enable_schema_validation=False):  # Keep disabled for now
         self.llm = get_llm(model_name=model_name, temperature=0, timeout=30)
         self.max_retries = max_retries
         self.enable_schema_validation = enable_schema_validation
@@ -114,9 +128,10 @@ class Planner:
                 if match:
                     tables.add(match.group(1))
             
-            # Format: "CREATE TABLE table_name"
-            elif line.startswith('CREATE TABLE'):
-                match = re.search(r'CREATE TABLE\s+`?(\w+)`?', line, re.IGNORECASE)
+            # Format: "CREATE TABLE table_name" or "CREATE TABLE `table_name`" or "CREATE TABLE "table_name""
+            elif line.startswith('CREATE TABLE') or 'CREATE TABLE' in line.upper():
+                # Match table names with backticks, double quotes, or no quotes
+                match = re.search(r'CREATE TABLE\s+[`"\']?(\w+)[`"\']?', line, re.IGNORECASE)
                 if match:
                     tables.add(match.group(1))
         
@@ -149,8 +164,8 @@ class Planner:
             matches = re.finditer(pattern, plan_lower, re.IGNORECASE)
             for match in matches:
                 table_name = match.group(1)
-                # Filter out SQL keywords using module constant
-                if table_name not in SQL_KEYWORDS:
+                # Filter out SQL keywords and stop words
+                if table_name not in SQL_KEYWORDS and table_name not in STOP_WORDS and len(table_name) > 2:
                     required_tables.add(table_name)
         
         return required_tables
