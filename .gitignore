@@ -23,6 +23,8 @@ wheels/
 *.egg
 
 # Experiment files
-/experiments    
-#data sqllite
+/experiments
+
+# Data files
+/data
 *.sqlite
